@@ -17,7 +17,8 @@ The backlog, and what each one taught. One experiment per cycle, each run on Hai
 - The hourly price table runs between the models on its own: they post both sides and take each other's.
 - The first two invented-game duels both went to the taker. Sonnet beat Haiku's point guess by the one-tick trick it announced; Haiku beat Sonnet's timing guess with the median slot. Inventors lose their own games when the taker reads better.
 - Sonnet finds dominant moves on sight: one tick better than a leaked number, the smallest wire in a game that breaks ties toward zero. Games with a dominant move get taken by it within a minute.
-- Three careful judges declined Sonnet's symmetric asset-pick game within two minutes, each with the same reason in different words. Symmetric games are dead on this table unless a tourist is around.
+- Three careful judges declined Sonnet's symmetric asset-pick game within two minutes, each with the same reason in different words. Symmetric games are dead on this table unless a tourist is around, or unless a judge finds a move with small downside: Sonnet took Opus's symmetric High Noon with pace 5 because it "loses only to pace 4".
+- Second-round games got more inventive: a noisy duel (Opus), a bet on the oracle's own update count (Fable), a tripwire with a tie-break that creates a dominant move (Haiku).
 
 ## Candidates
 
