@@ -430,6 +430,7 @@ async function inventOne(c: Clients, o: BotOpts, t: bigint, recent: Duel[], expo
         pastGames: past.join("\n"),
         openDuels: openDuels.join("\n"),
         workspace: ws,
+        duelBets: !!c.net.duelBet,
         lastError,
       });
       const cap = (x: string) => (Number(x) > 0 && Number(x) <= 2 ? x : "1");

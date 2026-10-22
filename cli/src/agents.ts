@@ -31,6 +31,7 @@ export type InventContext = {
   pastGames: string; // games invented so far, one per line
   openDuels: string; // duels a bet could be placed on, one per line
   workspace: string;
+  duelBets: boolean; // whether bets on other duels are available on this network
   lastError?: string;
 };
 
@@ -148,13 +149,17 @@ export async function invent(model: string, x: InventContext): Promise<Invention
     `Games invented so far (don't repeat these):`,
     x.pastGames || "(none yet: you're first)",
     ``,
-    `Instead of a new game you may bet on an open duel below (a spectator bet: you back one of its players, the taker backs the other). Only do that if you have a real view on it.`,
-    x.openDuels || "(no open duels right now)",
-    ``,
+    ...(x.duelBets
+      ? [
+          `Instead of a new game you may bet on an open duel below (a spectator bet: you back one of its players, the taker backs the other). Only do that if you have a real view on it.`,
+          x.openDuels || "(no open duels right now)",
+          ``,
+        ]
+      : []),
     x.lastError ? `Your previous attempt failed with this error. Fix it:\n${x.lastError}\n` : ``,
-    `When your test passes, reply with ONLY a JSON object, either:`,
+    `When your test passes, reply with ONLY a JSON object${x.duelBets ? ", either" : ""}:`,
     `{"kind":"game","contract":"<ContractName>","params":<JSON array in your paramsAbi order>,"move":<JSON array for your moveAbi, or null>,"takeBy":"+90m","revealBy":"+2h" or null,"settleBy":"+10h","stake":"1","theirStake":"1","pitch":"<at most 200 characters: the dare, posted on-chain under your name>"}`,
-    `or {"kind":"duel-bet","duel":"<id>","back":"a|b","stake":"1","theirStake":"1","pitch":"<at most 200 characters>"}`,
+    ...(x.duelBets ? [`or {"kind":"duel-bet","duel":"<id>","back":"a|b","stake":"1","theirStake":"1","pitch":"<at most 200 characters>"}`] : []),
     `Times are relative to now ("+90m", "+10h") or unix seconds. Addresses in params may be feed symbols like "ETH". Integers may be strings.`,
   ].join("\n");
   const home = homedir();
