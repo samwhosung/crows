@@ -8,7 +8,15 @@ import { crowsHome } from "./config.ts";
  * this file is how an inventor learns why nobody took its dare, and how the board can show declines. The bots on
  * the Mac append to it; the keeper on the server reads a copy that the Mac syncs over every minute.
  */
-export type Verdict = { at: number; duel: string; judge: Address; name: string; take: boolean; reason: string };
+export type Verdict = {
+  at: number;
+  duel: string;
+  judge: Address;
+  name: string;
+  take: boolean;
+  reason: string;
+  odds?: string | null; // when declining: the stakes it would take, "yours:theirs" in USDC ("1:2": it stakes 1 against 2)
+};
 
 function verdictsPath(network: string) {
   const dir = join(crowsHome(), network);

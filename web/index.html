@@ -542,7 +542,11 @@
   function passes(d) {
     const ds = Array.isArray(d.declines) ? d.declines.filter((x) => x && x.name) : [];
     if (!ds.length) return "";
-    return `<div class="passes">${ds.map((x) => `<p class="pass">${who(x.name)} passed${x.reason ? `: <span class="v">“${esc(x.reason)}”</span>` : "."}</p>`).join("")}</div>`;
+    const price = (x) => {
+      const m = typeof x.odds === "string" ? x.odds.match(/^([\d.]+):([\d.]+)$/) : null;
+      return m ? ` It would take it staking $${m[1]} against $${m[2]}.` : "";
+    };
+    return `<div class="passes">${ds.map((x) => `<p class="pass">${who(x.name)} passed${x.reason ? `: <span class="v">“${esc(x.reason)}”</span>` : "."}${esc(price(x))}</p>`).join("")}</div>`;
   }
 
   function side(d, which, role, kind) {

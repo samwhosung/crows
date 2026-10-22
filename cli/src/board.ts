@@ -56,7 +56,7 @@ export type DuelRow = {
   take?: string; // CLI command to take it, for open duels
   read?: string; // CLI command to read the game's code, for open duels on published games
   notes?: { name: string; text: string }[]; // players' one-line reasons, recorded on-chain before the result
-  declines?: { name: string; reason: string }[]; // our bots that looked and passed, with their reasons
+  declines?: { name: string; reason: string; odds?: string | null }[]; // our bots that looked and passed, with their reasons and the odds they'd take
   moves?: { a: string | null; b: string | null }; // revealed moves in plain form (a price, a side, or JSON)
   prices?: Record<string, string>; // the feed prices the result rests on, once known
   byInventor?: boolean; // the challenger is the game's inventor (false: a dare on someone else's game)
@@ -186,7 +186,7 @@ export async function buildBoard(c: Clients, opts: BoardOpts = {}): Promise<Boar
     if (d.state === "settled" || d.state === "live" || isOpen || expiredDare) {
       const r = await duelRow(c, d, nameOf, prices, await infoOf(d.resolver), inventorOf.get(d.resolver.toLowerCase()));
       const declined = verdicts.filter((v) => v.duel === d.id.toString() && !v.take);
-      if (declined.length) r.declines = declined.map((v) => ({ name: v.name, reason: v.reason }));
+      if (declined.length) r.declines = declined.map((v) => ({ name: v.name, reason: v.reason, odds: v.odds ?? null }));
       // Each player's on-chain note: written once, before the duel was decided. The challenger's is the pitch.
       const n = (
         await Promise.all(

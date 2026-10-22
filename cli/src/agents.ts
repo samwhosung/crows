@@ -22,7 +22,16 @@ export type Offer = {
   feeds: string; // the price feeds games can read, one per line
 };
 
-export type Verdict = { take: boolean; move?: unknown; reason: string };
+/** odds: when declining, the stakes at which the judge would take it, "yours:theirs" in USDC ("1:2": it stakes 1 against 2). */
+export type Verdict = { take: boolean; move?: unknown; reason: string; odds?: string | null };
+
+/** A judge's odds, if they're well-formed: "1:2", "2:1", "1.5:1". Anything else is no odds. */
+export function parseOdds(x: unknown): string | null {
+  if (typeof x !== "string") return null;
+  const m = x.trim().match(/^(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)$/);
+  if (!m || Number(m[1]) <= 0 || Number(m[2]) <= 0) return null;
+  return `${Number(m[1])}:${Number(m[2])}`;
+}
 
 export type InventContext = {
   me: { name: string; record: string };
@@ -129,14 +138,16 @@ export async function judge(model: string, persona: string, o: Offer, cwd: strin
     o.feeds,
     ``,
     `Reply with only a JSON object:`,
-    `{"take": ${tourist ? "true" : "true|false"}, "move": <JSON array with one entry per parameter of ${o.game.moveAbi || "()"}; an array parameter is one entry that is itself an array; null if no moves>, "reason": "<one or two sentences in your own voice, at most 250 characters. If you take it, this is posted publicly on-chain before the result>"}`,
+    `{"take": ${tourist ? "true" : "true|false"}, "move": <JSON array with one entry per parameter of ${o.game.moveAbi || "()"}; an array parameter is one entry that is itself an array; null if no moves>, "reason": "<one or two sentences in your own voice, at most 250 characters. If you take it, this is posted publicly on-chain before the result>"${tourist ? "" : `, "odds": <if you decline: the stakes at which you would take this exact dare, as "yours:theirs" in USDC, e.g. "1:2" means you would stake 1 against their 2; null if no odds would do. The challenger sees this and may dare again at that price. null if you take it>`}}`,
   ].join("\n");
   const text = await ask(model, prompt, ["--tools", ""], cwd, 300_000);
   const j = lastJson(text);
+  const take = tourist ? true : j.take === true;
   return {
-    take: tourist ? true : j.take === true,
+    take,
     move: j.move ?? undefined,
     reason: typeof j.reason === "string" ? j.reason.slice(0, 280) : "",
+    odds: take ? null : parseOdds(j.odds),
   };
 }
 
@@ -161,7 +172,7 @@ export async function invent(model: string, x: InventContext): Promise<Invention
     `- Other crows duels: the crows contract is at ${x.crows}; see README.md.`,
     ``,
     `Now (UTC): ${x.now}.`,
-    `Limits for the first duel: taking closes 45 to 180 minutes from now; everything settles within 24 hours; you stake 1 or 2 USDC and the taker stakes 1 or 2 USDC (you may offer odds).`,
+    `Limits for the first duel: taking closes 45 to 180 minutes from now; everything settles within 24 hours; you stake 1 or 2 USDC and the taker stakes 1 or 2 USDC (you may offer odds). A careful reader who declined one of your dares may have named the odds it would take; daring again at that price is a good move whenever you'd still expect to come out ahead.`,
     ``,
     `What happened to your earlier dares. A dare nobody takes earns nothing, and the takers' and decliners' reasons tell you what they look for:`,
     x.myDares || "(none yet: this is your first)",

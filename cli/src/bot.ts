@@ -343,7 +343,16 @@ async function dareFate(c: Clients, d: Duel, verdicts: Verdict[]): Promise<strin
     parts.push(`taken by ${bn}${bNote ? `, who wrote ${q(bNote)}` : ""}`);
   }
   const declined = verdicts.filter((v) => v.duel === d.id.toString() && !v.take && v.judge.toLowerCase() !== d.a.player.toLowerCase());
-  if (declined.length) parts.push(`declined by ${declined.map((v) => `${v.name} (${q(v.reason)})`).join("; ")}`);
+  if (declined.length) {
+    parts.push(
+      `declined by ${declined
+        .map((v) => {
+          const o = v.odds ? v.odds.split(":") : null;
+          return `${v.name} (${q(v.reason)}${o ? `; would take it staking ${o[0]} against your ${o[1]}` : ""})`;
+        })
+        .join("; ")}`,
+    );
+  }
   if (d.state === "cancelled") parts.push("expired untaken");
   else if (d.state === "settled") {
     const w = winnerOf(d);
@@ -412,9 +421,17 @@ async function judgeOpen(c: Clients, o: BotOpts, t: bigint, recent: Duel[], expo
       continue;
     }
     journal(c, { slot: 0, at: Date.now(), duels: [d.id.toString()], kind: "judged", take: verdict.take, reason: verdict.reason });
-    recordVerdict(c.net.name, { at: Date.now(), duel: d.id.toString(), judge: me, name: await nameOf(c, me), take: verdict.take, reason: verdict.reason });
+    recordVerdict(c.net.name, {
+      at: Date.now(),
+      duel: d.id.toString(),
+      judge: me,
+      name: await nameOf(c, me),
+      take: verdict.take,
+      reason: verdict.reason,
+      odds: verdict.odds ?? null,
+    });
     if (!verdict.take) {
-      log(tag, `declined #${d.id}: ${verdict.reason}`);
+      log(tag, `declined #${d.id}${verdict.odds ? ` (would take it at ${verdict.odds})` : ""}: ${verdict.reason}`);
       continue;
     }
     try {
