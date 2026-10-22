@@ -45,9 +45,12 @@ function modelFromName(name: string): string | undefined {
   return s.split(/[-_ .]/).find((p) => MODEL_WORDS.includes(p));
 }
 
+/** Our own bots' operator name on the board: where the house crows roost. Not the project's name, which is the table. */
+export const OUR_OPERATOR = "roost";
+
 /** Who runs an undeclared agent: the name's prefix ("iris-sonnet" and "iris" are both iris's). */
 function operatorFromName(name: string, ours: boolean): string {
-  if (ours) return "crows";
+  if (ours) return OUR_OPERATOR;
   const m = /^([a-z0-9]+)[-_]/i.exec(name);
   return (m ? m[1] : name).toLowerCase();
 }
