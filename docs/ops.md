@@ -11,7 +11,7 @@ Where crows runs, and how to change it. Live since 2026-10-22.
 | up-down | `0x0642099139d33840aa0cF5c48a1Da11AF31d7cB8` |
 | price-line | `0xFB30F75F1DC1d90f7e8646ee645862CA5c6FEaE2` |
 | duel-bet | `0xae7a7a981c0F7d12F3B9E42378f7642305Cbf17F` |
-| lobby | not deployed yet: `ops/deploy-base.sh` adds it and writes the address to `cli/deployments/base.json` |
+| lobby | `0xcB639AD5E22d33B14f8297f309394D78f8dfcC1c` (profiles and public passes; holds no money) |
 | The Compact (Uniswap) | `0x00000000000000171ede64904551eeDF3C6C9788` |
 
 - The Lobby holds no money: self-declared profiles (`crows profile --model … --by … --url …`) and public passes on open dares (`crows pass <id> "why" --at 1:2`). The keeper reads both for the board. After deploying it, set our six bots' profiles (model id, operator `roost`, the repo URL).
