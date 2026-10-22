@@ -2,7 +2,7 @@ import { encodeAbiParameters, parseUnits, zeroAddress, zeroHash, type Address, t
 import { crowsAbi } from "./abi.generated.ts";
 import { send, ensureAllowance, explain, type Clients } from "./chain.ts";
 import { getDuel, getDuels, involves, decodeCall, type Duel } from "./duels.ts";
-import { roundAt, feedDecimals } from "./rounds.ts";
+import { roundFrom, feedDecimals } from "./rounds.ts";
 import { sealMove, findMove } from "./store.ts";
 
 export const now = () => BigInt(Math.floor(Date.now() / 1000));
@@ -51,8 +51,8 @@ export async function challenge(c: Clients, o: ChallengeOpts): Promise<{ id: big
   if (!feed) throw new Error(`no price feed for ${o.asset} on ${c.net.name}; known: ${Object.keys(c.net.feeds).join(", ")}`);
   const dec = await feedDecimals(c, feed);
   const t = await chainNow(c);
-  // up-down: the window [at, end] starts when taking closes. Others: taking closes 15 min from now (or before `at`).
-  const takeBy = o.takeBy ?? (o.game === "up-down" ? o.at : t + 15n * 60n < o.at ? t + 15n * 60n : o.at - 60n);
+  // up-down: taking closes a minute before the window [at, end] starts. Others: 15 min from now (or before `at`).
+  const takeBy = o.takeBy ?? (o.game === "up-down" ? o.at - 60n : t + 15n * 60n < o.at ? t + 15n * 60n : o.at - 60n);
   const last = o.game === "up-down" ? (o.end ?? o.at + 3600n) : o.at;
   const revealBy = o.revealBy ?? (o.game === "closer-call" ? o.at + 30n * 60n : takeBy);
   const settleBy = o.settleBy ?? last + 3n * 3600n;
@@ -67,7 +67,7 @@ export async function challenge(c: Clients, o: ChallengeOpts): Promise<{ id: big
     resolver = c.net.closerCall;
     params = encodeAbiParameters([{ type: "address" }, { type: "uint64" }], [feed, o.at]);
     const move = encodeAbiParameters([{ type: "int256" }], [parseUnits(o.call, dec)]);
-    commitment = sealMove(c.net.name, me, move, `call ${o.call} ${o.asset} at ${o.at}`);
+    commitment = sealMove(c.net, me, move, `call ${o.call} ${o.asset} at ${o.at}`);
   } else if (o.game === "up-down") {
     if (o.side !== "up" && o.side !== "down") throw new Error("up-down needs --side up|down");
     resolver = c.net.upDown;
@@ -118,7 +118,7 @@ export async function accept(c: Clients, id: bigint, call?: string): Promise<Hex
     if (!call) throw new Error("this is a closer-call duel: pass --call <price>");
     const dec = await feedDecimals(c, d.game.feed);
     const move = encodeAbiParameters([{ type: "int256" }], [parseUnits(call, dec)]);
-    commitment = sealMove(c.net.name, me, move, `call ${call} in duel ${id}`);
+    commitment = sealMove(c.net, me, move, `call ${call} in duel ${id}`);
   } else if (call) {
     throw new Error(`duel ${id} is a ${d.game.kind} duel and takes no call`);
   }
@@ -164,7 +164,8 @@ export async function tick(c: Clients, opts: { all?: boolean; from?: bigint } = 
         rep.cancelled.push(d.id);
       }
     } catch (e) {
-      // Keepers race: if someone else settled, cancelled or expired it first, that's fine.
+      // Keepers race: if someone else settled, cancelled or expired it first (possibly still pending), that's fine.
+      if (explain(e).startsWith("WrongState")) continue;
       const after = await getDuel(c, d.id).catch(() => null);
       if (after && after.state !== d.state && (after.state === "settled" || after.state === "cancelled")) continue;
       rep.errors.push(`duel ${d.id}: ${explain(e)}`);
@@ -177,16 +178,16 @@ export async function tick(c: Clients, opts: { all?: boolean; from?: bigint } = 
 export async function trySettle(c: Clients, d: Duel, t: bigint): Promise<boolean> {
   let evidence: Hex = "0x";
   if (d.game.kind === "up-down") {
-    if (t <= d.game.end) return false;
-    const [r0, r1] = await Promise.all([roundAt(c, d.game.feed, d.game.start), roundAt(c, d.game.feed, d.game.end)]);
+    if (t < d.game.end) return false;
+    const [r0, r1] = await Promise.all([roundFrom(c, d.game.feed, d.game.start), roundFrom(c, d.game.feed, d.game.end)]);
     if (!r0 || !r1) return false;
     evidence = encodeAbiParameters([{ type: "uint80" }, { type: "uint80" }], [r0.id, r1.id]);
   } else if (d.game.kind === "closer-call" || d.game.kind === "price-line") {
     const needsPrice =
       d.game.kind === "price-line" || (decodeCall(d.a.move) !== null && decodeCall(d.b.move) !== null);
     if (needsPrice) {
-      if (t <= d.game.at) return false;
-      const r = await roundAt(c, d.game.feed, d.game.at);
+      if (t < d.game.at) return false;
+      const r = await roundFrom(c, d.game.feed, d.game.at);
       if (!r) return false;
       evidence = encodeAbiParameters([{ type: "uint80" }], [r.id]);
     }

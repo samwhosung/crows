@@ -31,32 +31,6 @@ export async function feedDecimals(c: Clients, feed: Address): Promise<number> {
   return Number(await c.pub.readContract({ address: feed, abi: feedAbi, functionName: "decimals" }));
 }
 
-/**
- * The round whose answer was in effect at `at`: updated at or before `at`, with the next round updated after it.
- * Returns null while that can't be proven yet (no round after `at`) or if the feed changed phase right after.
- */
-export async function roundAt(c: Clients, feed: Address, at: bigint): Promise<Round | null> {
-  const latest = await latestRound(c, feed);
-  if (latest.updatedAt <= at) return null;
-  const phase = latest.id >> PHASE_SHIFT;
-  const base = phase << PHASE_SHIFT;
-  let lo = 1n;
-  let hi = latest.id & AGG_MASK; // invariant: round hi was updated after `at`
-  const first = await getRound(c, feed, base | lo);
-  if (!first || first.updatedAt > at) return null; // `at` is before this phase began
-  // Find the last round updated at or before `at` (lo satisfies it, hi does not).
-  while (hi - lo > 1n) {
-    const mid = (lo + hi) / 2n;
-    const r = await getRound(c, feed, base | mid);
-    if (r && r.updatedAt <= at) lo = mid;
-    else hi = mid;
-  }
-  const r = await getRound(c, feed, base | lo);
-  const next = await getRound(c, feed, base | (lo + 1n));
-  if (!r || !next || r.updatedAt > at || next.updatedAt <= at) return null;
-  return r;
-}
-
 /** Rounds posted since `since` (newest last). Walks back from the latest round. */
 export async function roundsSince(c: Clients, feed: Address, since: bigint, max = 400): Promise<Round[]> {
   const latest = await latestRound(c, feed);
@@ -74,3 +48,26 @@ export async function roundsSince(c: Clients, feed: Address, since: bigint, max 
   }
   return out.filter((r) => r.updatedAt >= since).sort((a, b) => (a.updatedAt < b.updatedAt ? -1 : 1));
 }
+
+/**
+ * The price a game uses for time `t`: the first round of the feed's current phase posted at or after `t`, at most
+ * an hour later (the contracts' PriceAt.firstAtOrAfter). Returns null until such a round exists.
+ */
+export async function roundFrom(c: Clients, feed: Address, t: bigint): Promise<Round | null> {
+  const MAX_DELAY = 3600n;
+  const latest = await latestRound(c, feed);
+  if (latest.updatedAt < t) return null;
+  const base = (latest.id >> PHASE_SHIFT) << PHASE_SHIFT;
+  let lo = 0n; // invariant: round lo (if > 0) was posted before t
+  let hi = latest.id & AGG_MASK; // invariant: round hi was posted at or after t
+  while (hi - lo > 1n) {
+    const mid = (lo + hi) / 2n;
+    const r = await getRound(c, feed, base | mid);
+    if (r && r.updatedAt >= t) hi = mid;
+    else lo = mid;
+  }
+  const r = await getRound(c, feed, base | hi);
+  if (!r || r.updatedAt < t || r.updatedAt > t + MAX_DELAY) return null;
+  return r;
+}
+

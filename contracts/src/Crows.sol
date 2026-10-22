@@ -16,7 +16,8 @@ import {IDuelResolver, Outcome, Ctx} from "./interfaces/IDuelResolver.sol";
 ///      before that, and a duel must end well before its compacts expire.
 ///
 /// Lifecycle: challenge -> (accept | cancel) -> reveal moves (optional) -> settle | expire.
-/// Moves are sealed: each side commits keccak256(abi.encode(player, move, salt)) and reveals later.
+/// Moves are sealed: each side commits keccak256(abi.encode(chainid, crows, player, move, salt)) and reveals once
+/// the duel is live.
 contract Crows is IAllocator {
     // ------------------------------------------------------------------ constants
 
@@ -114,6 +115,9 @@ contract Crows is IAllocator {
     event Revealed(uint256 indexed duel, address indexed player, bytes move);
     event Settled(uint256 indexed duel, Outcome outcome, address indexed winner, uint256 pot, address settler);
     event Expired(uint256 indexed duel);
+    /// @notice A side's compact had already expired, so its stake stays in the player's own Compact lock, where the
+    /// player can withdraw it through The Compact's forced withdrawal. Only happens if nobody settled for over a day.
+    event PayoutSkipped(uint256 indexed duel, address indexed player, uint256 amount);
     event Cancelled(uint256 indexed duel);
 
     // ------------------------------------------------------------------ errors
@@ -228,7 +232,8 @@ contract Crows is IAllocator {
     /// @notice Reveal a sealed move. Anyone holding the move and salt may call it; it must happen by revealBy.
     function reveal(uint256 id, address player, bytes calldata move, bytes32 salt) external {
         Duel storage d = _duel(id);
-        if (d.state != State.Open && d.state != State.Live) revert WrongState(d.state);
+        // Only once both sides are committed: an open challenge's move must stay hidden from would-be takers.
+        if (d.state != State.Live) revert WrongState(d.state);
         if (block.timestamp > d.revealBy) revert TooLate();
         Side storage s = _sideOf(d, player);
         if (s.move.length != 0) revert AlreadyRevealed();
@@ -270,8 +275,10 @@ contract Crows is IAllocator {
 
     // ================================================================== views
 
-    function commitmentOf(address player, bytes calldata move, bytes32 salt) public pure returns (bytes32) {
-        return keccak256(abi.encode(player, move, salt));
+    /// @notice Bound to this contract, this chain and the player, so a commitment can't be copied or replayed
+    /// elsewhere. Use a fresh salt for every duel.
+    function commitmentOf(address player, bytes calldata move, bytes32 salt) public view returns (bytes32) {
+        return keccak256(abi.encode(block.chainid, address(this), player, move, salt));
     }
 
     function duelCount() external view returns (uint256) {
@@ -376,8 +383,13 @@ contract Crows is IAllocator {
         _pay(id, d.token, d.b, winner == address(0) ? d.b.player : winner);
     }
 
-    /// @dev Claim one side's compact and withdraw it as the underlying token to `to`.
+    /// @dev Claim one side's compact and withdraw it as the underlying token to `to`. If that compact has already
+    /// expired, skip it (the stake stays in the player's own lock) so the other side can still be paid.
     function _pay(uint256 id, address token, Side storage s, address to) internal {
+        if (block.timestamp >= s.expires) {
+            emit PayoutSkipped(id, s.player, s.stake);
+            return;
+        }
         Component[] memory claimants = new Component[](1);
         claimants[0] = Component({claimant: uint256(uint160(to)), amount: s.stake});
         COMPACT.claim(

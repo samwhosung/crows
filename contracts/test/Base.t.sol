@@ -48,12 +48,12 @@ abstract contract BaseTest is Test {
     // ---------------------------------------------------------------- helpers
 
     /// @dev Computed locally (an external call here would consume a pending vm.prank).
-    function commit(address player, int256 call_, bytes32 salt) internal pure returns (bytes32) {
+    function commit(address player, int256 call_, bytes32 salt) internal view returns (bytes32) {
         return commitRaw(player, abi.encode(call_), salt);
     }
 
-    function commitRaw(address player, bytes memory move, bytes32 salt) internal pure returns (bytes32) {
-        return keccak256(abi.encode(player, move, salt));
+    function commitRaw(address player, bytes memory move, bytes32 salt) internal view returns (bytes32) {
+        return keccak256(abi.encode(block.chainid, address(crows), player, move, salt));
     }
 
     /// @dev Closer-call terms: take within 10 min, price at +1h, reveal by +1h30, settle by +3h.
@@ -89,11 +89,14 @@ abstract contract BaseTest is Test {
         (, at) = abi.decode(t.params, (address, uint64));
     }
 
-    /// @dev Make `price` the answer at `at` and push a later round so it can be proven. Returns the round id.
+    /// @dev Make `price` the first round posted at or after `at` (with a different round just before `at` and one
+    /// after). Returns the round id.
     function postPriceAt(uint64 at, int256 price) internal returns (uint80 rid) {
         vm.warp(at - 30);
+        feed.push(price - 5e8);
+        vm.warp(at + 30);
         rid = feed.push(price);
-        vm.warp(at + 60);
+        vm.warp(at + 90);
         feed.push(price + 1e8);
     }
 

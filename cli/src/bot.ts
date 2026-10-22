@@ -108,7 +108,7 @@ async function housePost(c: Clients, o: BotOpts, S: bigint, recent: Duel[], expo
       at: S,
       end: S + BigInt(o.slot),
       stake: o.stake,
-      takeBy: S,
+      takeBy: S - 60n,
     });
     exposure += parseUnits(o.stake, 6);
     journal(c, { slot: Number(S), at: Date.now(), duels: [r.id.toString()], note: `posted ${side}` });
@@ -205,7 +205,7 @@ async function playerPlay(
         duels.push(offer.id.toString());
         log(tag, `took #${offer.id}: ${pick.direction.toUpperCase()}`);
       } else {
-        const r = await challenge(c, { game: "up-down", asset: o.asset, side: pick.direction, at: S, end, stake: o.stake, takeBy: S });
+        const r = await challenge(c, { game: "up-down", asset: o.asset, side: pick.direction, at: S, end, stake: o.stake, takeBy: S - 60n });
         duels.push(r.id.toString());
         log(tag, `posted #${r.id}: ${pick.direction.toUpperCase()}`);
       }

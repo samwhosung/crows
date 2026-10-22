@@ -6,13 +6,19 @@ import { parseTime } from "../src/actions.ts";
 import { decodeCall } from "../src/duels.ts";
 import { flat, trend } from "../src/strategies.ts";
 
-test("sealed-move commitment matches the contract's keccak256(abi.encode(player, move, salt))", () => {
+test("sealed-move commitment matches the contract's keccak256(abi.encode(chainid, crows, player, move, salt))", () => {
   // Reference value computed with `cast` from the same inputs.
   const move = encodeAbiParameters([{ type: "int256" }], [244125000000n]);
   const salt = "0x7361000000000000000000000000000000000000000000000000000000000000";
   assert.equal(
-    commitmentOf("0x328809Bc894f92807417D2dAD6b7C998c1aFdac6", move, salt),
-    "0x5eec5470edfacb59d06a4b5c1c1fabfad6f40ae37194d7c48bb0a6b0af388645",
+    commitmentOf(
+      8453,
+      "0xB12753BB0b1a84a2b2Fde0A047d8F3Dd64829a83",
+      "0x328809Bc894f92807417D2dAD6b7C998c1aFdac6",
+      move,
+      salt,
+    ),
+    "0x7544cf4297eddcc2cf4753e9458278abd4f47d38e2784d6b379ea2e1d28a954a",
   );
 });
 

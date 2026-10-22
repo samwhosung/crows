@@ -50,7 +50,8 @@ export async function send(
   if (!c.wallet || !c.account) throw new Error("no wallet: pass --as <name> or set CROWS_KEY");
   try {
     const { request } = await c.pub.simulateContract({ ...(req as any), account: c.account });
-    const hash = await c.wallet.writeContract(request as any);
+    // simulateContract trims the ABI to one function; keep the full one so revert reasons decode.
+    const hash = await c.wallet.writeContract({ ...(request as any), abi: req.abi });
     const receipt = await c.pub.waitForTransactionReceipt({ hash, timeout: 120_000 });
     if (receipt.status !== "success") throw new Error(`transaction ${hash} reverted`);
     return hash;

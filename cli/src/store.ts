@@ -28,14 +28,26 @@ function save(network: string, who: Address, f: File) {
   renameSync(p + ".tmp", p);
 }
 
-export function commitmentOf(player: Address, move: Hex, salt: Hex): Hex {
-  return keccak256(encodeAbiParameters([{ type: "address" }, { type: "bytes" }, { type: "bytes32" }], [player, move, salt]));
+/** Matches Crows.commitmentOf: keccak256(abi.encode(chainid, crows, player, move, salt)). */
+export function commitmentOf(chainId: number, crows: Address, player: Address, move: Hex, salt: Hex): Hex {
+  return keccak256(
+    encodeAbiParameters(
+      [{ type: "uint256" }, { type: "address" }, { type: "address" }, { type: "bytes" }, { type: "bytes32" }],
+      [BigInt(chainId), crows, player, move, salt],
+    ),
+  );
 }
 
 /** Create a fresh salt, save the move, and return its commitment. */
-export function sealMove(network: string, player: Address, move: Hex, note?: string): Hex {
+export function sealMove(
+  net: { name: string; chainId: number; crows: Address },
+  player: Address,
+  move: Hex,
+  note?: string,
+): Hex {
+  const network = net.name;
   const salt = toHex(crypto.getRandomValues(new Uint8Array(32)));
-  const commitment = commitmentOf(player, move, salt);
+  const commitment = commitmentOf(net.chainId, net.crows, player, move, salt);
   const f = load(network, player);
   f.moves[commitment] = { move, salt, note, savedAt: Date.now() };
   save(network, player, f);

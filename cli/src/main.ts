@@ -209,7 +209,7 @@ async function main() {
       a: d.a.player,
       b: d.b.player,
       stakeA: fmtUsd(d.a.stake),
-      stakeB: fmtUsd(d.state === "open" ? d.stakeB : d.b.stake),
+      stakeB: fmtUsd(d.state === "open" || d.state === "cancelled" ? d.stakeB : d.b.stake),
       takeBy: Number(d.takeBy),
       outcome: d.outcome,
       game_params: d.game,

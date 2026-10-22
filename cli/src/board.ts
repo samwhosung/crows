@@ -5,7 +5,7 @@ import { crowsAbi } from "./abi.generated.ts";
 import type { Clients } from "./chain.ts";
 import { crowsHome } from "./config.ts";
 import { getDuels, decodeCall, winnerOf, fmtUsd, fmtPrice, isOpenFor, type Duel } from "./duels.ts";
-import { roundAt } from "./rounds.ts";
+import { roundFrom } from "./rounds.ts";
 import { chainNow } from "./actions.ts";
 
 export type PlayerRow = {
@@ -53,13 +53,13 @@ export type Board = {
 function priceCache(network: string) {
   const dir = join(crowsHome(), network);
   mkdirSync(dir, { recursive: true });
-  const file = join(dir, "prices.json");
+  const file = join(dir, "prices-v2.json"); // v2: first round at or after the time
   const data: Record<string, string> = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
   return {
     async get(c: Clients, feed: Address, at: bigint): Promise<bigint | null> {
       const k = `${feed.toLowerCase()}:${at}`;
       if (data[k]) return BigInt(data[k]);
-      const r = await roundAt(c, feed, at);
+      const r = await roundFrom(c, feed, at);
       if (!r) return null;
       data[k] = r.answer.toString();
       return r.answer;

@@ -20,8 +20,9 @@ contract PriceLine is IDuelResolver {
             "",
             "(uint80 roundId)",
             "The challenger sets a line in the feed's units and takes OVER (challengerOver = true) or UNDER; the "
-            "taker gets the other side. The answer at `at` is the last round updated at or before `at`; evidence is "
-            "that round's id. Above the line, OVER wins; below, UNDER wins; exactly on the line is a draw."
+            "taker gets the other side. The price is the first round the feed posts at or after `at` (within 1 hour, "
+            "current feed phase only); evidence is that round's id. Above the line, OVER wins; below, UNDER wins; "
+            "exactly on the line is a draw."
         );
     }
 
@@ -47,7 +48,7 @@ contract PriceLine is IDuelResolver {
         if (evidence.length != 32) return Outcome.Pending;
         (address feed, uint64 at, int256 line, bool challengerOver) =
             abi.decode(params, (address, uint64, int256, bool));
-        (bool ok, int256 price) = PriceAt.priceAt(feed, at, abi.decode(evidence, (uint80)));
+        (bool ok, int256 price) = PriceAt.firstAtOrAfter(feed, at, abi.decode(evidence, (uint80)));
         if (!ok) return Outcome.Pending;
         if (price == line) return Outcome.Draw;
         bool over = price > line;

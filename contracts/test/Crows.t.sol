@@ -72,9 +72,9 @@ contract CrowsTest is BaseTest {
         revealBoth(id, 2450e8, 2380e8);
         uint80 rid = postPriceAt(atOf(t), 2441e8);
         vm.expectRevert(Crows.NotYet.selector);
-        crows.settle(id, abi.encode(rid + 1)); // updated after `at`
+        crows.settle(id, abi.encode(rid + 1)); // after `at`, but not the first round after it
         vm.expectRevert(Crows.NotYet.selector);
-        crows.settle(id, abi.encode(rid - 1)); // superseded before `at`
+        crows.settle(id, abi.encode(rid - 1)); // posted before `at`
         vm.expectRevert(Crows.NotYet.selector);
         crows.settle(id, abi.encode(uint80(999))); // does not exist
         vm.expectRevert(Crows.NotYet.selector);
@@ -82,14 +82,71 @@ contract CrowsTest is BaseTest {
         crows.settle(id, abi.encode(rid));
     }
 
-    function test_settle_beforeNextRoundIsNotYet() public {
+    function test_settle_needsARoundAtOrAfterAt() public {
         (uint256 id, Crows.Terms memory t) = openCloser(2450e8, 2380e8);
         revealBoth(id, 2450e8, 2380e8);
         vm.warp(atOf(t) - 30);
-        uint80 rid = feed.push(2441e8);
+        uint80 before = feed.push(2441e8);
         vm.warp(atOf(t) + 10 minutes);
-        vm.expectRevert(Crows.NotYet.selector); // no round after `at` yet, so it can't be proven
-        crows.settle(id, abi.encode(rid));
+        vm.expectRevert(Crows.NotYet.selector); // the last round before `at` is not the price
+        crows.settle(id, abi.encode(before));
+        vm.warp(atOf(t) + 61 minutes);
+        uint80 late = feed.push(2441e8);
+        vm.expectRevert(Crows.NotYet.selector); // first round after `at`, but more than an hour late
+        crows.settle(id, abi.encode(late));
+        vm.warp(t.settleBy + 1);
+        crows.expire(id);
+        assertEq(USDC.balanceOf(alice), 1000e6, "unprovable price: both refunded");
+    }
+
+    function test_reveal_onlyOnceLive() public {
+        Crows.Terms memory t = closerTerms(address(0));
+        vm.prank(alice);
+        uint256 id = crows.challenge(t, commit(alice, 2450e8, "sa"));
+        vm.expectRevert(abi.encodeWithSelector(Crows.WrongState.selector, Crows.State.Open));
+        crows.reveal(id, alice, abi.encode(int256(2450e8)), "sa");
+    }
+
+    function test_commitmentIsBoundToThisContract() public {
+        Crows other = new Crows(COMPACT);
+        bytes memory move = abi.encode(int256(2450e8));
+        assertTrue(crows.commitmentOf(alice, move, "s") != other.commitmentOf(alice, move, "s"));
+    }
+
+    function test_closerCall_timingGaps() public {
+        Crows.Terms memory t = closerTerms(address(0));
+        t.revealBy = t.settleBy; // a forfeit could never be collected
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(Crows.InvalidTerms.selector, "settleBy must be >= revealBy + 1h"));
+        crows.challenge(t, bytes32(0));
+        t = closerTerms(address(0));
+        t.revealBy = t.takeBy + 5 minutes; // a late taker couldn't reveal in time
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(Crows.InvalidTerms.selector, "revealBy must be >= takeBy + 10m"));
+        crows.challenge(t, bytes32(0));
+    }
+
+    function test_expiredSideIsSkipped_otherSideStillPaid() public {
+        Crows.Terms memory t = closerTerms(address(0));
+        vm.prank(alice);
+        uint256 id = crows.challenge(t, commit(alice, 2450e8, "sa"));
+        vm.warp(block.timestamp + 5 minutes);
+        vm.prank(bob);
+        crows.accept(id, commit(bob, 2380e8, "sb"));
+        Crows.Duel memory d = crows.getDuel(id);
+        vm.warp(d.a.expires); // alice's compact just expired; bob's has 5 minutes left
+        vm.expectEmit(true, true, false, true);
+        emit Crows.PayoutSkipped(id, alice, STAKE);
+        crows.expire(id);
+        assertEq(USDC.balanceOf(bob), 1000e6, "bob refunded");
+        assertEq(lockBalance(alice), STAKE, "alice's stake stays in her own lock");
+        uint256 lid = crows.lockId(address(USDC));
+        vm.prank(alice);
+        uint256 at = COMPACT.enableForcedWithdrawal(lid);
+        vm.warp(at);
+        vm.prank(alice);
+        COMPACT.forcedWithdrawal(lid, alice, STAKE);
+        assertEq(USDC.balanceOf(alice), 1000e6, "and she can take it out herself");
     }
 
     // ================================================================ sealed moves
@@ -414,7 +471,7 @@ contract CrowsTest is BaseTest {
 
     function upDownTerms(bool aUp) internal view returns (Crows.Terms memory t, uint64 start, uint64 end) {
         t = closerTerms(address(0));
-        start = t.takeBy;
+        start = t.takeBy + 60;
         end = start + 1 hours;
         t.resolver = address(updown);
         t.params = abi.encode(address(feed), start, end, aUp);
@@ -429,17 +486,19 @@ contract CrowsTest is BaseTest {
         vm.prank(bob);
         crows.accept(id, bytes32(0));
         vm.warp(start - 10);
+        uint80 pre = feed.push(2420e8); // known before the window: must not count
+        vm.warp(start + 10);
         uint80 r0 = feed.push(2400e8);
         vm.warp(end - 10);
-        uint80 r1 = feed.push(2401e8);
-        vm.warp(end + 60);
-        vm.expectRevert(Crows.NotYet.selector); // end price not provable until a later round exists
-        crows.settle(id, abi.encode(r0, r1));
         feed.push(2390e8);
-        vm.expectRevert(Crows.NotYet.selector); // wrong start round
-        crows.settle(id, abi.encode(r0 - 1, r1));
+        vm.expectRevert(Crows.NotYet.selector); // no round at or after `end` yet
+        crows.settle(id, abi.encode(r0, r0 + 1));
+        vm.warp(end + 10);
+        uint80 r1 = feed.push(2401e8);
+        vm.expectRevert(Crows.NotYet.selector); // the pre-window round is not the start price
+        crows.settle(id, abi.encode(pre, r1));
         crows.settle(id, abi.encode(r0, r1));
-        assertEq(USDC.balanceOf(alice), 1010e6);
+        assertEq(USDC.balanceOf(alice), 1010e6, "2400 -> 2401: up");
     }
 
     function test_upDown_downAndFlat() public {
@@ -453,24 +512,24 @@ contract CrowsTest is BaseTest {
         uint256 id2 = crows.challenge(t, bytes32(0));
         vm.prank(bob);
         crows.accept(id2, bytes32(0));
-        vm.warp(start - 10);
+        vm.warp(start + 10);
         uint80 r0 = feed.push(2400e8);
-        vm.warp(end + 60);
-        feed.push(2399e8);
-        // no round between start and end: price unchanged, a draw
-        crows.settle(id1, abi.encode(r0, r0));
+        vm.warp(end + 10);
+        uint80 r1 = feed.push(2400e8);
+        // unchanged price: a draw
+        crows.settle(id1, abi.encode(r0, r1));
         assertEq(uint8(crows.getDuel(id1).outcome), uint8(Outcome.Draw));
         assertEq(USDC.balanceOf(alice), 990e6, "alice still has the second duel staked");
         assertEq(USDC.balanceOf(bob), 990e6);
-        crows.settle(id2, abi.encode(r0, r0));
+        crows.settle(id2, abi.encode(r0, r1));
         assertEq(USDC.balanceOf(alice), 1000e6);
     }
 
     function test_upDown_startMustNotPrecedeTakeBy() public {
         (Crows.Terms memory t, uint64 start, uint64 end) = upDownTerms(true);
-        t.params = abi.encode(address(feed), start - 1, end, true);
+        t.params = abi.encode(address(feed), t.takeBy, end, true);
         vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(Crows.InvalidTerms.selector, "start must be at or after takeBy"));
+        vm.expectRevert(abi.encodeWithSelector(Crows.InvalidTerms.selector, "start must be after takeBy"));
         crows.challenge(t, bytes32(0));
     }
 }
