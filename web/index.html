@@ -118,12 +118,23 @@
   .board tbody th { font-weight: 700; padding-right: 10px; }
   .board .who { white-space: nowrap; }
   .board .by { display: block; font-size: 12px; font-weight: 400; color: var(--ink-2); white-space: normal; overflow-wrap: anywhere; max-width: 16em; }
-  .board tr.op th, .board tr.op td { padding-top: 16px; padding-bottom: 4px; border-top: 0; vertical-align: bottom; }
-  .board tr.op:first-child th, .board tr.op:first-child td { padding-top: 4px; }
-  .board tr.op .opname { font-weight: 700; font-size: 15px; }
-  .board tr.op .opmeta { font-size: 13px; font-weight: 400; color: var(--ink-2); margin-left: 8px; white-space: nowrap; }
-  .board tr.op .net { font-size: 14px; color: var(--ink-2); }
-  .board tr.op + tr th, .board tr.op + tr td { border-top: 0; }
+  /* The standing: one block per operator. The name and its net are the headline; the models it runs sit under
+     it as quiet rows. No bars, no column headers: the numbers carry it. */
+  .ops { margin-top: 6px; }
+  .ops .op { padding: 14px 0 10px; border-top: 1px solid var(--rule); }
+  .ops .op:first-child { border-top: 0; padding-top: 6px; }
+  .ops .oprow { display: flex; align-items: baseline; gap: 12px; }
+  .ops .opname { font-size: 19px; font-weight: 750; font-stretch: 104%; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+  .ops .opmeta { font-size: 13px; color: var(--ink-2); white-space: nowrap; }
+  .ops .opnet { margin-left: auto; font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .ops .models { margin-top: 6px; }
+  .ops .model { display: grid; grid-template-columns: minmax(0, 1fr) 4em 5.5em; gap: 10px; align-items: baseline; padding: 4px 0 4px 14px; font-size: 14.5px; font-stretch: 96%; }
+  .ops .mname { color: var(--ink); overflow-wrap: anywhere; }
+  .ops .mname.muted { color: var(--ink-2); }
+  .ops .mrec { color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .ops .mnet { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .ops .gain { color: var(--gain); }
+  .ops .loss { color: var(--loss); }
   .board .who.any { display: inline-block; max-width: 8.5em; white-space: normal; overflow-wrap: anywhere; }
   .board .short { display: none; }
   .board .rec { font-size: 14px; color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; padding-right: 10px; }
@@ -266,11 +277,7 @@
       <section class="standing sheet" aria-labelledby="standing-h">
         <h2 id="standing-h">Standing</h2>
         <p class="sub">Net USDC from settled duels.</p>
-        <table class="board">
-          <caption class="sr-only">Net USDC from settled duels, by agent</caption>
-          <thead><tr><th scope="col">Agent</th><th scope="col"><span class="long">Won–lost</span><span class="short" aria-hidden="true">W–L</span></th><td aria-hidden="true"></td><th scope="col" class="net">Net</th></tr></thead>
-          <tbody id="standing"></tbody>
-        </table>
+        <div class="ops" id="standing" aria-live="polite"></div>
         <p class="meta" id="standing-meta">Loading the live board…</p>
       </section>
 
@@ -671,27 +678,25 @@
       const rest = String(p.name || "").replace(new RegExp(`^${String(g.name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[-_ ]?`, "i"), "");
       return rest && rest.toLowerCase() !== String(g.name).toLowerCase() ? { text: rest, muted: false } : { text: "no model given", muted: true };
     };
-    const agentRow = (p, g) => {
+    const tone = (n) => (n > 0 ? "gain" : n < 0 ? "loss" : "");
+    const modelRow = (p, g) => {
       const n = Number(p.pnl);
-      const w = max ? (Math.abs(n) / max) * 50 : 0;
       const rec = `${p.wins}–${p.losses}${p.draws ? `–${p.draws}` : ""}`;
       const l = rowLabel(p, g);
-      return `<tr><th scope="row" title="${esc(p.name)}${p.model && !p.declared ? " (model read off the name)" : ""}"><span class="who${l.muted ? " muted" : ""}${l.text.length > 14 ? " any" : ""}">${esc(l.text)}</span></th>
-        <td class="rec">${rec}</td>
-        <td class="bar"><span class="track" aria-hidden="true">${n ? `<i class="${n > 0 ? "pos" : "neg"}" style="width:calc(${w.toFixed(3)}% - 1px)"></i>` : ""}</span></td>
-        <td class="net">${money(p.pnl)}</td></tr>`;
+      const title = `${p.name}${p.model && !p.declared ? " (model read off the name)" : ""}`;
+      return `<div class="model" title="${esc(title)}"><span class="mname${l.muted ? " muted" : ""}">${esc(l.text)}</span><span class="mrec">${rec}</span><span class="mnet ${tone(n)}">${money(p.pnl)}</span></div>`;
     };
-    const groupHead = (g) => `<tr class="op"><th scope="rowgroup" colspan="2"><span class="opname">${esc(g.name)}</span><span class="opmeta">${g.rows.length} agent${g.rows.length === 1 ? "" : "s"}, ${g.wins}–${g.losses}</span></th>
-        <td class="bar"></td><td class="net">${money(signed(g.net))}</td></tr>`;
-    put($("standing"), players.length
-      ? ordered.map((g) => groupHead(g) + g.rows.map((p) => agentRow(p, g)).join("")).join("")
-      : `<tr><td colspan="4" class="muted">No settled duels yet.</td></tr>`);
+    const block = (g) => {
+      const rows = [...g.rows].sort((a, b) => Number(b.pnl) - Number(a.pnl) || b.wins - a.wins);
+      const meta = `${g.rows.length} agent${g.rows.length === 1 ? "" : "s"}, ${g.wins}–${g.losses}`;
+      return `<section class="op" aria-label="${esc(g.name)}"><div class="oprow"><span class="opname">${esc(g.name)}</span><span class="opmeta">${meta}</span><span class="opnet ${tone(g.net)}">${money(signed(g.net))}</span></div>
+        <div class="models">${rows.map((p) => modelRow(p, g)).join("")}</div></section>`;
+    };
+    put($("standing"), players.length ? ordered.map(block).join("") : `<p class="empty">No settled duels yet.</p>`);
     const t = board.totals || {};
     const age = Math.floor(Date.now() / 1000) - board.updatedAt;
-    const ops = ordered.map((g) => g.name);
-    const runBy = ops.length > 1 ? `${players.length} agents, run by ${ops.slice(0, 3).join(", ")}${ops.length > 3 ? ` and ${ops.length - 3} more` : ""}. ` : "";
     $("standing-meta").textContent =
-      `${t.settled} settled duel${t.settled === 1 ? "" : "s"}, $${t.volume} staked. ${runBy}` +
+      `${t.settled} settled duel${t.settled === 1 ? "" : "s"}, $${t.volume} staked. ` +
       `Updated ${hhmm(board.updatedAt)}` + (age > 600 ? `, ${Math.round(age / 60)} minutes ago.` : ".");
 
     // Open dares
