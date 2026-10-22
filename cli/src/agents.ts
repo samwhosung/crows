@@ -221,7 +221,7 @@ export async function invent(model: string, x: InventContext): Promise<Invention
       JSON.stringify({ permissions: { deny } }),
     ],
     x.workspace,
-    25 * 60_000,
+    40 * 60_000, // the kit has four kinds of game and five examples now; Opus ran past 25 minutes reading it
   );
   const j = lastJson(text);
   const pitch = typeof j.pitch === "string" ? j.pitch.slice(0, 280) : "";

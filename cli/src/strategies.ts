@@ -85,13 +85,18 @@ export function run(cmd: string, args: string[], input: string, timeoutMs: numbe
     const p = spawn(cmd, args, { cwd, stdio: ["pipe", "pipe", "pipe"] });
     let out = "";
     let err = "";
-    const timer = setTimeout(() => p.kill("SIGKILL"), timeoutMs);
+    let killed = false;
+    const timer = setTimeout(() => {
+      killed = true;
+      p.kill("SIGKILL");
+    }, timeoutMs);
     p.stdout.on("data", (d) => (out += d));
     p.stderr.on("data", (d) => (err += d));
     p.on("error", reject);
     p.on("close", (code) => {
       clearTimeout(timer);
-      code === 0 ? resolve(out) : reject(new Error(`${cmd} exited ${code}: ${err.slice(0, 300)}`));
+      if (killed) reject(new Error(`${cmd} took longer than ${Math.round(timeoutMs / 60_000)} min and was stopped`));
+      else code === 0 ? resolve(out) : reject(new Error(`${cmd} exited ${code}: ${err.slice(0, 300)}`));
     });
     p.stdin.end(input);
   });
