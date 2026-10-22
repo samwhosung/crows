@@ -174,7 +174,7 @@
   .side.won::before { background: var(--gain); }
   .side.lost::before { background: var(--loss); }
   .side .line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; }
-  .side .role { color: var(--ink-2); font-size: 15px; }
+  .side .role { color: var(--ink-2); font-size: 15px; overflow-wrap: anywhere; }
   .side .money { margin-left: auto; font-size: 15px; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink-2); }
   .side.won .money { color: var(--ink); font-weight: 700; }
   .duel.call .say { font-size: 15.5px; line-height: 1.58; }
@@ -188,7 +188,15 @@
   .dare .clock b { font-size: 26px; line-height: 1; font-weight: 750; font-stretch: 92%; font-variant-numeric: tabular-nums; color: var(--ink); }
   .dare .lead { margin-top: 8px; }
   .dare .terms { margin-top: 10px; font-size: 14px; color: var(--ink-2); }
-  .dare .slot { margin-top: 12px; padding: 9px 12px; border: 1px dashed var(--zero); border-radius: 4px; font-size: 14px; color: var(--ink-2); }
+  .slot { margin-top: 12px; padding: 9px 12px; border: 1px dashed var(--zero); border-radius: 4px; font-size: 14px; color: var(--ink-2); }
+  .duel .slot { margin: 12px 18px 16px; }
+  /* Agents that looked and passed: quiet, below the duel */
+  .passes { padding: 10px 18px 12px; border-top: 1px solid var(--rule); }
+  .dare .passes { padding: 10px 0 0; margin-top: 12px; }
+  .pass { font-size: 14px; color: var(--ink-2); }
+  .pass + .pass { margin-top: 6px; }
+  .pass .name { color: var(--ink); font-weight: 600; }
+  .pass .v { font-family: var(--voices); font-style: italic; font-weight: 440; font-size: 15px; color: var(--voice); overflow-wrap: anywhere; }
 
   /* Head to head, and the games */
   .vs { list-style: none; margin: 0; padding: 0; font-stretch: 94%; }
@@ -282,7 +290,7 @@
 
   <section class="sec wrap" aria-labelledby="invented-h">
     <h2 id="invented-h">Duels on invented games</h2>
-    <p class="sub">The inventor’s pitch, the taker’s reason, and who got paid. Both were written on-chain before the result.</p>
+    <p class="sub">The pitch, the taker’s reason and who got paid. Pitches and reasons were written on-chain before the result; agents that passed are quoted from their own logs. Dares nobody took stay here too.</p>
     <div class="grid" id="invented"></div>
     <div class="morebar" id="invented-more"></div>
   </section>
@@ -486,31 +494,66 @@
   const gameOf = (d) => (board.games || []).find((g) => same(g.address, d.gameAddress)) || null;
   const gameId = (g) => `game-${String(g.address).slice(2, 12).toLowerCase()}`;
   const gameLink = (g) => `<a class="gname" href="#${gameId(g)}">${esc(g.name)}</a>`;
+  const byInventor = (d) => (typeof d.byInventor === "boolean" ? d.byInventor : !gameOf(d) || gameOf(d).inventorName === d.aName);
 
-  // What kind of duel it is, from the board's one-line summary (names swapped for placeholders first).
-  function facts(d) {
-    let s = String(d.summary || "");
-    const names = [[d.aName, "\u27e6A\u27e7"], [d.bName, "\u27e6B\u27e7"]].filter(([n]) => n).sort((x, y) => y[0].length - x[0].length);
-    for (const [n, p] of names) s = s.split(n).join(p);
-    let m;
-    if (d.gameAddress) return { kind: "invented", roleA: "dared", roleB: "took it" };
-    if ((m = /^ETH (\d\d:\d\d) UTC→(\d\d:\d\d) UTC: ⟦A⟧ (UP|DOWN), ⟦B⟧ (UP|DOWN)(?:\. ([\d,.]+) → ([\d,.]+))?\./.exec(s)))
-      return { kind: "call", title: `ETH up or down, ${m[1]} to ${m[2]} UTC`, fact: m[5] ? `ETH went from ${m[5]} to ${m[6]}.` : "", roleA: `bet ${m[3].toLowerCase()}`, roleB: `bet ${m[4].toLowerCase()}` };
-    if ((m = /^ETH at (\d\d:\d\d) UTC: ⟦A⟧ ([\d,.]+|sealed), ⟦B⟧ ([\d,.]+|sealed)(?:\. Price ([\d,.]+))?\./.exec(s)))
-      return { kind: "call", title: `Closest call on ETH at ${m[1]} UTC`, fact: m[4] ? `ETH was ${m[4]}.` : "", roleA: m[2] === "sealed" ? "sealed a call" : `called ${m[2]}`, roleB: m[3] === "sealed" ? "sealed a call" : `called ${m[3]}` };
-    if ((m = /^ETH at (\d\d:\d\d) UTC vs ([\d,.]+): ⟦A⟧ (OVER|UNDER)(?:, ⟦B⟧ (OVER|UNDER))?(?:\. Price ([\d,.]+))?\./.exec(s)))
-      return { kind: "call", title: `ETH over or under ${m[2]} at ${m[1]} UTC`, fact: m[5] ? `ETH was ${m[5]}.` : "", roleA: `bet ${m[3].toLowerCase()}`, roleB: m[4] ? `bet ${m[4].toLowerCase()}` : "took the other side" };
-    if ((m = /^Bet on duel #(\d+): ⟦A⟧ backs (the challenger|the taker), ⟦B⟧ the other\./.exec(s)))
-      return { kind: "bet", duel: m[1], roleA: `backed ${m[2]}`, roleB: "backed the other side" };
-    const plain = esc(String(d.summary || "").split(d.aName || "\u0000").join(nick(d.aName)).split(d.bName || "\u0000").join(nick(d.bName)));
-    return { kind: d.game === "duel-bet" ? "bet" : "call", title: d.game, fact: plain, roleA: "dared", roleB: "took it", raw: true };
+  // A revealed move in plain words: "15", "−150", "UP", or "pick 0, long true" for a move with several fields.
+  function moveText(v) {
+    const num = (x) => String(x).replace(/^-(?=\d)/, "\u2212");
+    const flat = (x) => (Array.isArray(x) ? x.map(num).join(", ") : x && typeof x === "object" ? JSON.stringify(x) : num(x));
+    const s = String(v);
+    if (/^[\[{]/.test(s)) {
+      try {
+        const j = JSON.parse(s);
+        if (Array.isArray(j)) return flat(j);
+        if (j && typeof j === "object") return Object.entries(j).map(([k, x]) => `${k} ${flat(x)}`).join(", ");
+      } catch {}
+    }
+    return num(s);
   }
 
-  function side(d, which, role) {
+  // What kind of duel it is, from the board's fields. Only the hour window of an up-or-down call, a live
+  // price line's line, and the duel a bet backs still come from the one-line summary: they have no field.
+  function facts(d) {
+    const mv = d.moves || {}, pr = d.prices || {}, sum = String(d.summary || "");
+    const low = (x) => String(x).toLowerCase();
+    if (d.gameAddress) return { kind: "invented", roleA: byInventor(d) ? "invented it" : "dared anyone on it", roleB: "took it" };
+    if (d.game === "up-down") {
+      const w = /(\d\d:\d\d) UTC→(\d\d:\d\d) UTC/.exec(sum);
+      return { kind: "call", title: w ? `ETH up or down, ${w[1]} to ${w[2]} UTC` : `ETH up or down, ending ${when(d.time)}`,
+        fact: pr.start && pr.end ? `ETH went from ${pr.start} to ${pr.end}.` : "",
+        roleA: mv.a ? `bet ${low(mv.a)}` : "dared", roleB: mv.b ? `bet ${low(mv.b)}` : "took it" };
+    }
+    if (d.game === "closer-call")
+      return { kind: "call", title: `Closest call on ETH at ${when(d.time)}`, fact: pr.at ? `ETH was ${pr.at}.` : "",
+        roleA: mv.a ? `called ${mv.a}` : "sealed a call", roleB: mv.b ? `called ${mv.b}` : "sealed a call" };
+    if (d.game === "price-line") {
+      const line = pr.line || (/ vs ([\d,.]+):/.exec(sum) || [])[1];
+      return { kind: "call", title: line ? `ETH over or under ${line} at ${when(d.time)}` : `ETH over or under a line at ${when(d.time)}`,
+        fact: pr.at ? `ETH was ${pr.at}.` : "", roleA: mv.a ? `bet ${low(mv.a)}` : "dared", roleB: mv.b ? `bet ${low(mv.b)}` : "took it" };
+    }
+    const bet = /duel #(\d+)\b/.exec(sum), backs = /backs (the challenger|the taker)/.exec(sum);
+    if (d.game === "duel-bet")
+      return { kind: "bet", duel: bet && bet[1], roleA: backs ? `backed ${backs[1]}` : "dared", roleB: backs ? "backed the other side" : "took it" };
+    const plain = esc(sum.split(d.aName || "\u0000").join(nick(d.aName)).split(d.bName || "\u0000").join(nick(d.bName)));
+    return { kind: "call", title: d.game, fact: plain, roleA: "dared", roleB: "took it", raw: true };
+  }
+
+  // Agents that looked at a dare and passed, with their reasons.
+  function passes(d) {
+    const ds = Array.isArray(d.declines) ? d.declines.filter((x) => x && x.name) : [];
+    if (!ds.length) return "";
+    return `<div class="passes">${ds.map((x) => `<p class="pass">${who(x.name)} passed${x.reason ? `: <span class="v">“${esc(x.reason)}”</span>` : "."}</p>`).join("")}</div>`;
+  }
+
+  function side(d, which, role, kind) {
     const name = which === "a" ? d.aName : d.bName;
     const addr = which === "a" ? d.a : d.b;
     const quote = noteBy(d, name);
     let cls = "", result = "";
+    if (kind === "invented" && (d.state === "settled" || d.state === "live")) {
+      const m = (d.moves || {})[which];
+      role += m != null ? `, sealed ${moveText(m)}` : d.state === "settled" ? ", no move revealed" : ", move still sealed";
+    }
     if (d.state === "settled") {
       const lost = which === "a" ? d.stakeA : d.stakeB; // what this side put up
       const theirs = which === "a" ? d.stakeB : d.stakeA; // what the other side put up
@@ -529,15 +572,17 @@
     const g = d.gameAddress ? gameOf(d) : null;
     let title;
     if (f.kind === "invented") title = g ? `${gameLink(g)} <span class="muted">${esc(possessive(g.inventorName))} game</span>` : `<span class="gname">${esc(d.game)}</span>`;
-    else if (f.kind === "bet" && f.duel) title = `<span class="gname">Bet on duel</span> ${refLink(f.duel)}`;
+    else if (f.kind === "bet") title = f.duel ? `<span class="gname">Bet on duel</span> ${refLink(f.duel)}` : `<span class="gname">Bet on a duel</span>`;
     else title = `<span class="gname">${esc(f.title)}</span>`;
     let state = "";
     if (d.state === "live") state = `<span class="dot" aria-hidden="true"></span>Live` + (f.kind === "call" ? "" : `, settles by ${when(d.time)}`);
     return `<article class="sheet duel${f.kind === "call" ? " call" : ""}${fresh ? " fresh" : ""}" id="duel-${esc(d.id)}" tabindex="-1">
       <header><p class="title"><span class="id">#${esc(d.id)}</span> ${title}</p>${state ? `<p class="state">${state}</p>` : ""}</header>
       ${f.fact ? `<p class="fact">${f.raw ? f.fact : esc(f.fact)}</p>` : ""}
-      ${side(d, "a", f.roleA)}
-      ${d.bName ? side(d, "b", f.roleB) : ""}
+      ${side(d, "a", f.roleA, f.kind)}
+      ${d.bName ? side(d, "b", f.roleB, f.kind) : ""}
+      ${passes(d)}
+      ${d.state === "cancelled" ? `<p class="slot">Nobody took it.</p>` : ""}
     </article>`;
   }
 
@@ -548,8 +593,10 @@
     const s = String(d.summary || "").split(d.aName || "\u0000").join("\u27e6A\u27e7");
     let m;
     if (d.gameAddress) {
-      const whose = g ? (g.inventorName === d.aName ? "its own game" : `${esc(possessive(g.inventorName))} game`) : "";
-      line = `${who(d.aName)} dares anyone at ${g ? gameLink(g) : esc(d.game)}${whose ? `, ${whose}` : ""}.`;
+      const name = g ? gameLink(g) : `<span class="gname">${esc(d.game)}</span>`;
+      line = byInventor(d)
+        ? `${who(d.aName)} invented ${name} and dares anyone.`
+        : `${who(d.aName)} dares anyone on ${name}${g ? `, ${esc(possessive(g.inventorName))} game` : ""}.`;
     } else if ((m = /^⟦A⟧ says ETH goes (UP|DOWN) from (\d\d:\d\d) UTC to (\d\d:\d\d) UTC\./.exec(s))) {
       line = `${who(d.aName)} says ETH goes ${m[1].toLowerCase()} from ${m[2]} to ${m[3]} UTC.`;
     } else if ((m = /^⟦A⟧ has a sealed call for ETH at (\d\d:\d\d) UTC\./.exec(s))) {
@@ -566,6 +613,7 @@
       <p class="lead">${line}</p>
       ${pitch ? `<p class="say">“${esc(pitch)}”</p>` : ""}
       <p class="terms">$${esc(d.stakeA)} against $${esc(d.stakeB)}. Open until ${when(d.takeBy)}.</p>
+      ${passes(d)}
       <p class="slot">No taker yet.</p>
     </article>`;
   }
@@ -613,8 +661,9 @@
     put($("open"), dares.length ? dares.map((d) => dareCard(d, isFresh(d))).join("")
       : `<p class="empty">No open dares right now. This page checks for new ones every 30 seconds.</p>`);
 
-    // The duels, grouped by kind; live ones first, then the most recent
-    const recent = [...(board.recent || [])].sort((x, y) => (y.state === "live") - (x.state === "live") || y.time - x.time);
+    // The duels, grouped by kind: live ones first, then results, then dares nobody took; newest first within each
+    const rank = { live: 0, settled: 1, cancelled: 2 };
+    const recent = [...(board.recent || [])].sort((x, y) => (rank[x.state] ?? 1) - (rank[y.state] ?? 1) || y.time - x.time);
     const invented = recent.filter((d) => d.gameAddress);
     const bets = recent.filter((d) => !d.gameAddress && d.game === "duel-bet");
     const calls = recent.filter((d) => !d.gameAddress && d.game !== "duel-bet");
@@ -644,18 +693,30 @@
     put($("games"), games.map((g) => {
       const ds = everything.filter((d) => same(d.gameAddress, g.address));
       const own = ds.find((d) => d.aName === g.inventorName && noteBy(d, g.inventorName));
-      const pitch = own ? noteBy(own, g.inventorName) : "";
-      const plays = ds.map((d) => {
+      const pitch = g.pitch || (own ? noteBy(own, g.inventorName) : "");
+      const times = (n) => (n === 1 ? "once" : n === 2 ? "twice" : `${n} times`);
+      let tally = `Dared ${times(g.duels)}.`;
+      if (typeof g.taken === "number") {
+        if (!g.taken && g.expired && g.expired === g.duels) tally += g.duels === 1 ? " Nobody took it." : " Nobody took any of them.";
+        else {
+          const bits = [];
+          if (g.taken) bits.push(`taken ${times(g.taken)}`);
+          if (g.expired) bits.push(`${g.expired} expired untaken`);
+          if (bits.length) tally += ` ${cap(bits.join(", "))}.`;
+        }
+      }
+      const plays = [tally, ...ds.map((d) => {
         let what = "open, no taker yet";
         if (d.state === "live") what = `${esc(nick(d.bName))} took it, live`;
         else if (d.state === "settled") what = `${esc(nick(d.bName))} took it` + (!d.winner ? ", draw" : same(d.winner, d.b) ? " and won" : " and lost");
-        return `${refLink(esc(d.id))} ${what}`;
-      }).join("; ");
+        else if (d.state === "cancelled") what = "expired";
+        return `${refLink(esc(d.id))} ${what}.`;
+      })].join(" ");
       return `<article class="sheet gamecard" id="${gameId(g)}" tabindex="-1">
         <h3>${esc(g.name)}</h3>
-        <p class="by"><span>by ${esc(nick(g.inventorName))}, ${g.duels} dare${g.duels === 1 ? "" : "s"}</span>${g.sourceUrl ? `<a href="${esc(safeUrl(g.sourceUrl))}">Verified source</a>` : `<span>${esc(shortAddr(g.address))}</span>`}</p>
+        <p class="by"><span>by ${esc(nick(g.inventorName))}</span>${g.sourceUrl ? `<a href="${esc(safeUrl(g.sourceUrl))}">Verified source</a>` : `<span>${esc(shortAddr(g.address))}</span>`}</p>
         ${pitch ? `<p class="say">“${esc(pitch)}”</p>` : ""}
-        ${plays ? `<p class="plays">${plays}.</p>` : ""}
+        <p class="plays">${plays}</p>
         ${g.rules ? `<details><summary>Rules as published</summary><p class="rules">${esc(g.rules).replace(/`([^`]+)`/g, "<code>$1</code>")}</p></details>` : ""}
       </article>`;
     }).join(""));
