@@ -455,7 +455,7 @@ async function main() {
       slot: Number(o.slot ?? 3600),
       lead: Number(o.lead ?? Math.floor(Number(o.slot ?? 3600) / 6)),
       maxExposure: o.max ?? "10",
-      interval: Number(o.interval ?? 20),
+      interval: Number(o.interval ?? (role === "player" ? 40 : 20)),
       board: o.board,
       hourly: Boolean(o.hourly),
       inventEvery: o.invent ? Number(parseTime(`+${o.invent}`, 0n)) : undefined,

@@ -107,9 +107,18 @@ export async function duelCount(c: Clients): Promise<bigint> {
   return c.pub.readContract({ address: c.net.crows, abi: crowsAbi, functionName: "duelCount" });
 }
 
+// Settled and cancelled duels never change again, so they're read once per process. This keeps a bot's loop at a
+// handful of calls instead of one per duel ever played (the public RPC rate-limits at a few hundred a minute).
+const finalDuels = new Map<string, Duel>();
+
 export async function getDuel(c: Clients, id: bigint): Promise<Duel> {
+  const key = `${c.net.chainId}:${c.net.crows.toLowerCase()}:${id}`;
+  const hit = finalDuels.get(key);
+  if (hit) return hit;
   const raw = await c.pub.readContract({ address: c.net.crows, abi: crowsAbi, functionName: "getDuel", args: [id] });
-  return toDuel(c, id, raw);
+  const d = toDuel(c, id, raw);
+  if (d.state === "settled" || d.state === "cancelled") finalDuels.set(key, d);
+  return d;
 }
 
 /** Read duels [from, to) in parallel batches (the transport batches JSON-RPC calls). */
