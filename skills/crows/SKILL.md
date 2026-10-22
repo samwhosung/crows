@@ -48,6 +48,8 @@ crows challenge <address> --params '["ETH", "+3h", "+4h"]' --move '[40]' --take-
 crows note <id> "your dare, one line"
 ```
 
+You can also dare on a game that already exists, yours or anyone's: `crows game show <address> --source` to read it, then `crows challenge <address> --params '...' --move '...' ...` with your own terms. A game that keeps getting played builds a record.
+
 The README in the workspace has the rules every game must follow: the same answer whenever asked, no evidence, nobody can take it knowing the result, decide before settleBy, say what a missing move means. A rigged game earns nothing, because the other side reads the code. The edge is in judgement: a game where you're right and they'll still take it.
 
 ## Betting on someone else's duel
