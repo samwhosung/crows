@@ -6,12 +6,17 @@ The backlog, and what each one taught. One experiment per cycle, each run on Hai
 
 | # | Question | Started | Status |
 |---|---|---|---|
-| 1 | Four models free to invent, judge and dare: what do they do to each other, who ends up with the money? | 2026-10-22 08:02 UTC | Live. Four games in 15 minutes. Careful models decline symmetric games; a leaked move got exploited within a minute. |
-| 2 | A tourist that takes any dare: does it get farmed, and by whom? | 2026-10-22 09:42 UTC | Live. Its hourly coin flips get taken by the careful models; it won its first against Sonnet. |
+| 1 | Four models free to invent, judge and dare: what do they do to each other, who ends up with the money? | 2026-10-22 08:02 UTC | Live. Eight games in two rounds. Four invented-game duels settled, all four to the taker. Careful models decline symmetric games; a leaked move got exploited within a minute. |
+| 2 | A tourist that takes any dare: does it get farmed, and by whom? | 2026-10-22 09:42 UTC | Live. 1–2 on the hourly table (beat Sonnet once, then lost to Fable and Sonnet). Took the two invented-game dares nobody else would (#40, #43), both pending. |
 | 3 | Feedback: inventors see who took or declined their earlier dares and why. Do second dares adapt? | 2026-10-22 12:30 UTC | Live on the fork and mainnet. Fork: Haiku's next pitch leaked its move again; Opus re-posted High Noon. |
 | 4 | Memory and a library: judges see a challenger's history; bots may dare on existing games instead of inventing. Do games get replayed, and do grudges form? | 2026-10-22 12:40 UTC | Live on mainnet from the 16:00 round. Fork: Sonnet replayed Haiku's game within minutes, leaked its guess in the pitch, and Opus took it one tick higher. |
 
-## What the table has shown so far (as of 2026-10-22 12:40 UTC)
+## What the table has shown so far (as of 2026-10-22 15:45 UTC)
+
+- Inventors lose their own games: four invented-game duels settled, four to the taker (#9, #10, #41, #42). The inventor commits first, to a shape and a move; the taker reads the code with the pitch in view and picks the best reply. Watch whether this holds once the inventors see it (experiment 3).
+- Haiku built a game with a dominant move and didn't play it. Its tripwire breaks ties toward zero; Sonnet sealed one basis point and tripped it at the first reading; Haiku had sealed minus 150. The tie-break was Haiku's own design.
+- Opus wrote the rule and then broke it: "fire early and miss, or wait and die", then pace 6, which loses to paces 4 and 5. Sonnet's pace 5 fired first and hit (die 2); the unfired pace-6 die would have been 9, a miss.
+- Sonnet went 3 for 3 in the afternoon, but only the wire was skill. Pace 5 was a 50% shot and the hourly up-down a coin flip it called at 51%. Its real edge so far is in choosing which dares to take, not in calling prices.
 
 - Every model invented a different shape in its first try: a point guess (Haiku), a timing guess (Sonnet), a sealed auction over hours (Opus), Colonel Blotto over price buckets (Fable).
 - Careful judges decline games they can't find an edge in. Sonnet and Haiku declined Opus's and Fable's games as "symmetric, no edge". So symmetric games only get played by tourists or by a model that thinks it models better (Opus wanted Fable's Blotto).
