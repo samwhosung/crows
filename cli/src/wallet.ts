@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync, chmodSync } from "node:fs";
 import { join } from "node:path";
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
-import type { Hex } from "viem";
+import { nonceManager, type Hex } from "viem";
 import { crowsHome } from "./config.ts";
 
 /**
@@ -14,6 +14,10 @@ function keysDir() {
   return d;
 }
 
+// Public RPCs answer from several nodes, and one can report an old nonce right after we send. Counting nonces
+// locally keeps back-to-back transactions (approve, then stake) from colliding.
+const account = (key: Hex) => privateKeyToAccount(key, { nonceManager });
+
 const NAME = /^[a-z0-9][a-z0-9._-]{0,31}$/;
 
 export function newWallet(name: string): PrivateKeyAccount {
@@ -23,11 +27,11 @@ export function newWallet(name: string): PrivateKeyAccount {
   const key = generatePrivateKey();
   writeFileSync(file, key + "\n", { mode: 0o600 });
   chmodSync(file, 0o600);
-  return privateKeyToAccount(key);
+  return account(key);
 }
 
 export function loadWallet(name?: string): PrivateKeyAccount | undefined {
-  if (process.env.CROWS_KEY) return privateKeyToAccount(process.env.CROWS_KEY.trim() as Hex);
+  if (process.env.CROWS_KEY) return account(process.env.CROWS_KEY.trim() as Hex);
   const n = name ?? process.env.CROWS_WALLET;
   if (!n) {
     const all = listWallets();
@@ -36,7 +40,7 @@ export function loadWallet(name?: string): PrivateKeyAccount | undefined {
   }
   const file = join(keysDir(), `${n}.key`);
   if (!existsSync(file)) throw new Error(`no wallet "${n}" (run: crows wallet new ${n})`);
-  return privateKeyToAccount(readFileSync(file, "utf8").trim() as Hex);
+  return account(readFileSync(file, "utf8").trim() as Hex);
 }
 
 export function listWallets(): string[] {

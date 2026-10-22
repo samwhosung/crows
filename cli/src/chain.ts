@@ -13,6 +13,8 @@ import {
   type Chain,
   BaseError,
   ContractFunctionRevertedError,
+  HttpRequestError,
+  maxUint256,
 } from "viem";
 import { base, baseSepolia } from "viem/chains";
 import type { Network } from "./config.ts";
@@ -22,7 +24,16 @@ export type Clients = {
   pub: PublicClient<Transport, Chain>;
   wallet?: WalletClient<Transport, Chain, Account>;
   account?: Account;
+  /** When this process last saw one of its own transactions confirmed (ms). */
+  lastWrite?: number;
 };
+
+// Public RPCs such as mainnet.base.org spread requests over several nodes, and some lag a block or two behind the
+// node that just confirmed our transaction. A call that reverts right after our own write may only be seeing that
+// lag (no allowance yet, duel not created yet), so it is checked again for a short while before it counts.
+const LAG_WINDOW_MS = 20_000;
+const LAG_RETRY_MS = 2_000;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function chainOf(net: Network): Chain {
   const rpc = { default: { http: [net.rpcUrl] } };
@@ -48,11 +59,26 @@ export async function send(
   req: { address: Address; abi: readonly unknown[]; functionName: string; args?: readonly unknown[] },
 ): Promise<Hash> {
   if (!c.wallet || !c.account) throw new Error("no wallet: pass --as <name> or set CROWS_KEY");
+  const call = { ...(req as any), account: c.account };
+  let request: any;
+  let gas: bigint;
+  for (;;) {
+    try {
+      ({ request } = await c.pub.simulateContract(call));
+      // Estimate here too, so writeContract doesn't estimate again on a node that may be behind.
+      gas = await c.pub.estimateContractGas(call);
+      break;
+    } catch (e) {
+      const sinceWrite = c.lastWrite === undefined ? Infinity : Date.now() - c.lastWrite;
+      if (sinceWrite > LAG_WINDOW_MS) throw new Error(explain(e));
+      await sleep(LAG_RETRY_MS);
+    }
+  }
   try {
-    const { request } = await c.pub.simulateContract({ ...(req as any), account: c.account });
     // simulateContract trims the ABI to one function; keep the full one so revert reasons decode.
-    const hash = await c.wallet.writeContract({ ...(request as any), abi: req.abi });
+    const hash = await c.wallet.writeContract({ ...request, abi: req.abi, gas: (gas * 12n) / 10n });
     const receipt = await c.pub.waitForTransactionReceipt({ hash, timeout: 120_000 });
+    c.lastWrite = Date.now();
     if (receipt.status !== "success") throw new Error(`transaction ${hash} reverted`);
     return hash;
   } catch (e) {
@@ -69,6 +95,8 @@ export function explain(e: unknown): string {
       return `${revert.data.errorName}${args}`;
     }
     if (revert?.reason) return revert.reason;
+    const http = e.walk((x) => x instanceof HttpRequestError) as HttpRequestError | null;
+    if (http) return `${e.shortMessage} (${http.status ?? "no response"}: ${(http.details ?? "").slice(0, 120)})`;
     return e.shortMessage;
   }
   return e instanceof Error ? e.message : String(e);
@@ -78,5 +106,7 @@ export async function ensureAllowance(c: Clients, token: Address, spender: Addre
   const owner = c.account!.address;
   const allowance = await c.pub.readContract({ address: token, abi: erc20Abi, functionName: "allowance", args: [owner, spender] });
   if (allowance >= amount) return;
-  await send(c, { address: token, abi: erc20Abi, functionName: "approve", args: [spender, amount] });
+  // One standing approval instead of one per duel. Safe here because crows only ever pulls a stake from the
+  // wallet that calls challenge or accept, at the moment it calls.
+  await send(c, { address: token, abi: erc20Abi, functionName: "approve", args: [spender, maxUint256] });
 }
