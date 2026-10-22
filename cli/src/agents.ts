@@ -40,6 +40,7 @@ export type InventContext = {
   feeds: string;
   pastGames: string; // games others invented so far, one per line, with how each dare went
   myDares: string; // this bot's own earlier games and dares: who took or declined them and why, and the results
+  kinds: string; // how many games of each kind the table has: "8 price, 1 strategy, 0 table, 0 luck"
   openDuels: string; // duels a bet could be placed on, one per line
   workspace: string;
   duelBets: boolean; // whether bets on other duels are available on this network
@@ -165,11 +166,14 @@ export async function invent(model: string, x: InventContext): Promise<Invention
     `First read README.md: it has the rules every game must follow (determinism, timing, no evidence, sealed moves). Then look at src/examples and test/.`,
     `Write your game as src/<Name>.sol with a test in test/<Name>.t.sol. Run \`forge test\` until it passes. Only work inside this folder.`,
     ``,
-    `What a game can read:`,
-    `- Chainlink price feeds on Base (PriceAt.find(feed, t) for fast feeds; slow feeds only post on a 0.5% move or daily, so use PriceAt.findWithin(feed, t, maxDelay) for them, with maxDelay up to 25 hours and settleBy after it):`,
+    `What a game can be about (the kit has a helper and a worked example for each kind; README.md has the details):`,
+    `- The table itself, crows/lib/Table.sol: bets on other agents. Will X's next dare be taken, does Y win its next three, who takes more dares, will anyone take #N. The crows contract is at ${x.crows}. Example: src/examples/NextDare.sol.`,
+    `- Outsmarting with sealed moves and no price at all: guess my number, matching pennies, Blotto, split-the-pot demands. The edge is a read on your opponent. Examples: GuessMyNumber.sol, RockPaperScissors.sol.`,
+    `- Luck dealt by the oracle, crows/lib/Dice.sol: cards, craps, a duel at ten paces, from dice hashed off a feed's next round. Pure chance is only interesting at odds: offer 2 against 1. Example: HighCard.sol.`,
+    `- Prices, crows/lib/PriceAt.sol: 24 feeds, not just ETH: gold, silver, the euro, Tesla, Nvidia, Solana, Doge. PriceAt.find(feed, t) for fast feeds; slow feeds only post on a 0.5% move or daily, so use PriceAt.findWithin(feed, t, maxDelay) for them, with maxDelay up to 25 hours and settleBy after it. Example: PriceRace.sol.`,
     x.feeds,
-    `- Sealed moves from both players (any ABI you define), hidden until both are in.`,
-    `- Other crows duels: the crows contract is at ${x.crows}; see README.md.`,
+    ``,
+    `Kinds of game on the table right now: ${x.kinds}. The table is for anyone watching, and a table of one kind is dull: pick a kind it has few of, unless you have a price game nobody has seen before.`,
     ``,
     `Now (UTC): ${x.now}.`,
     `Limits for the first duel: taking closes 45 to 180 minutes from now; everything settles within 24 hours; you stake 1 or 2 USDC and the taker stakes 1 or 2 USDC (you may offer odds). A careful reader who declined one of your dares may have named the odds it would take; daring again at that price is a good move whenever you'd still expect to come out ahead.`,

@@ -138,9 +138,10 @@ export function initWorkspace(dir = gamesDir()): string {
   if (!existsSync(join(kit, "README.md"))) throw new Error(`the game kit isn't here (${kit}): use a clone of the crows repo`);
   mkdirSync(join(dir, "src"), { recursive: true });
   mkdirSync(join(dir, "test"), { recursive: true });
+  // The kit's own files are refreshed every time; the agent's files (src/<Name>.sol, test/<Name>.t.sol) are left alone.
   cpSync(join(kit, "README.md"), join(dir, "README.md"));
-  if (!existsSync(join(dir, "src/examples"))) cpSync(join(kit, "src/examples"), join(dir, "src/examples"), { recursive: true });
-  if (!existsSync(join(dir, "test/GameTest.sol"))) cpSync(join(kit, "test"), join(dir, "test"), { recursive: true });
+  cpSync(join(kit, "src/examples"), join(dir, "src/examples"), { recursive: true });
+  cpSync(join(kit, "test"), join(dir, "test"), { recursive: true });
   // Not under lib/: Foundry invents remappings for anything in lib/, and they clash with these.
   // The copy keeps the repo's layout (src/, test/mocks/), because the mocks import crows by relative path.
   rmSync(join(dir, "deps"), { recursive: true, force: true });
@@ -160,6 +161,7 @@ export function initWorkspace(dir = gamesDir()): string {
       `evm_version = "cancun"`,
       `optimizer = true`,
       `optimizer_runs = 200`,
+      `via_ir = true`, // Crows.sol needs it, and games about other duels import Crows.sol`,
       `bytecode_hash = "none"`,
       `remappings = ["crows/=deps/crows/src/", "crows-test/=deps/crows/test/", "forge-std/=${join(contracts, "lib/forge-std/src")}/"]`,
       ``,
@@ -278,6 +280,17 @@ export function ownFiles(files: Record<string, string>): Record<string, string> 
   const shared = /(interfaces\/IDuelResolver|lib\/PriceAt|forge-std|Crows\.sol$|interfaces\/ICompact)/;
   const own = Object.fromEntries(Object.entries(files).filter(([p]) => !shared.test(p)));
   return Object.keys(own).length ? own : files;
+}
+
+export type GameKind = "table" | "strategy" | "luck" | "price";
+
+/** What a game is about, read off its own source: the kit's helper it imports, or failing that its rules text. */
+export function kindOf(files: Record<string, string>, rules: string): GameKind {
+  const src = Object.values(ownFiles(files)).join("\n");
+  if (/lib\/Table\.sol|\/Crows\.sol/.test(src)) return "table";
+  if (/lib\/Dice\.sol/.test(src)) return "luck";
+  if (/lib\/PriceAt\.sol/.test(src) || (!src && /\b(feed|price)\b/i.test(rules))) return "price";
+  return "strategy";
 }
 
 export function sourcifyUrl(chainId: number, address: Address) {

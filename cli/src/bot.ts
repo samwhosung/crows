@@ -11,7 +11,7 @@ import type { Pick, Strategy, View } from "./strategies.ts";
 import type { Offer } from "./agents.ts";
 import { crowsAbi } from "./abi.generated.ts";
 import { BASE_FEED_INFO } from "./config.ts";
-import { decodeJson, deployGame, describeGame, gamesDir, initWorkspace, ownFiles, sourceOf } from "./games.ts";
+import { decodeJson, deployGame, describeGame, gamesDir, initWorkspace, kindOf, ownFiles, sourceOf, type GameKind } from "./games.ts";
 import { readVerdicts, recordVerdict, type Verdict } from "./verdicts.ts";
 
 export type BotOpts = {
@@ -459,7 +459,7 @@ async function inventOne(c: Clients, o: BotOpts, t: bigint, recent: Duel[], expo
   if (exposure + parseUnits("2", 6) > max) return;
 
   const ws = o.workspace ?? join(gamesDir(), tag.replace(/[^a-z0-9._-]/gi, "-"));
-  if (!existsSync(join(ws, "foundry.toml"))) initWorkspace(ws);
+  initWorkspace(ws); // every time: the kit's README, examples, helpers and config must be current when the model reads them
   const record = recordsOf(recent);
 
   // Games so far: one line each, oldest first. Names and rules come from the games themselves.
@@ -468,13 +468,16 @@ async function inventOne(c: Clients, o: BotOpts, t: bigint, recent: Duel[], expo
   const verdicts = readVerdicts(c.net.name);
   const past: string[] = [];
   const myDares: string[] = [];
+  const kindCount: Record<GameKind, number> = { table: 0, strategy: 0, luck: 0, price: 0 };
   for (const ds of byGame.values()) {
     const info = await describeGame(c, ds[0].resolver).catch(() => null);
     if (!info) continue;
+    const kind = kindOf((await sourceOf(c, ds[0].resolver).catch(() => ({ files: {} }))).files, info.rules);
+    kindCount[kind]++;
     const by = await nameOf(c, ds[0].a.player);
     const mine = ds[0].a.player.toLowerCase() === me.toLowerCase();
     const fates = await Promise.all(ds.map(async (d) => `#${d.id}: ${await dareFate(c, d, verdicts)}`));
-    const line = `- ${info.name.slice(0, 40)} at ${ds[0].resolver} by ${mine ? "you" : by} (params ${info.paramsAbi || "()"}, move ${info.moveAbi || "none"}): ${info.rules.replace(/\s+/g, " ").slice(0, 220)} [${fates.join(" | ")}]`;
+    const line = `- [${kind}] ${info.name.slice(0, 40)} at ${ds[0].resolver} by ${mine ? "you" : by} (params ${info.paramsAbi || "()"}, move ${info.moveAbi || "none"}): ${info.rules.replace(/\s+/g, " ").slice(0, 220)} [${fates.join(" | ")}]`;
     (mine ? myDares : past).push(line);
     if (mine) {
       const pitch = await noteOf(c, ds[0].id, me);
@@ -499,6 +502,7 @@ async function inventOne(c: Clients, o: BotOpts, t: bigint, recent: Duel[], expo
         feeds: feedsText(c),
         pastGames: past.join("\n"),
         myDares: myDares.join("\n"),
+        kinds: (Object.keys(kindCount) as GameKind[]).map((k) => `${kindCount[k]} ${k}`).join(", "),
         openDuels: openDuels.join("\n"),
         workspace: ws,
         duelBets: !!c.net.duelBet,
