@@ -17,6 +17,8 @@ export type Network = {
   upDown: Address;
   /** Bets on another duel's outcome; absent on networks deployed before it existed. */
   duelBet?: Address;
+  /** Earlier deployments of the built-in games. Any contract can be a game, so duels on them stay valid. */
+  legacy: { closerCall: Address[]; upDown: Address[]; priceLine: Address[] };
   compact: Address;
   usdc: Address;
   /** Price feeds by asset symbol. */
@@ -63,6 +65,14 @@ export const BASE_FEED_INFO: FeedInfo[] = (
 
 const BASE_FEEDS: Record<string, Address> = Object.fromEntries(BASE_FEED_INFO.map((f) => [f.symbol, f.address]));
 
+/** The built-in games as first deployed on 2026-10-22, before the price library changed (new addresses since). */
+const BASE_LEGACY = {
+  closerCall: ["0xdC10f40032a33aEF573456eab56EA9bbde4417AF"] as Address[],
+  upDown: ["0x87c8B7DCaA8CEdDf9bF1740df5D58f551425D24a"] as Address[],
+  priceLine: ["0x46cd02a4f5aCCB57E26793D4ee19c271Da72808F"] as Address[],
+};
+const NO_LEGACY = { closerCall: [], upDown: [], priceLine: [] };
+
 type Deployment = {
   chainId: number;
   crows: Address;
@@ -108,6 +118,7 @@ export function loadNetwork(name = process.env.CROWS_NETWORK ?? "base"): Network
         explorer: "https://basescan.org",
         usdc: USDC_BASE,
         feeds: BASE_FEEDS,
+        legacy: BASE_LEGACY,
         dev: false,
       };
     case "base-sepolia":
@@ -117,6 +128,7 @@ export function loadNetwork(name = process.env.CROWS_NETWORK ?? "base"): Network
         explorer: "https://sepolia.basescan.org",
         usdc: USDC_BASE_SEPOLIA,
         feeds: {},
+        legacy: NO_LEGACY,
         dev: false,
       };
     case "local":
@@ -126,6 +138,7 @@ export function loadNetwork(name = process.env.CROWS_NETWORK ?? "base"): Network
         rpcUrl: process.env.CROWS_RPC_URL ?? "http://127.0.0.1:8545",
         usdc: USDC_BASE,
         feeds: { ...BASE_FEEDS, ...(d.mockFeed ? { ETH: d.mockFeed } : {}) },
+        legacy: BASE_LEGACY,
         dev: true,
       };
     default:

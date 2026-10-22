@@ -42,19 +42,20 @@ export type Duel = {
 
 export function decodeGame(c: Clients, resolver: Address, params: Hex): Game {
   const r = resolver.toLowerCase();
+  const is = (current: Address, legacy: Address[]) => r === current.toLowerCase() || legacy.some((a) => a.toLowerCase() === r);
   try {
-    if (r === c.net.closerCall.toLowerCase()) {
+    if (is(c.net.closerCall, c.net.legacy.closerCall)) {
       const [feed, at] = decodeAbiParameters([{ type: "address" }, { type: "uint64" }], params);
       return { kind: "closer-call", feed, at };
     }
-    if (r === c.net.priceLine.toLowerCase()) {
+    if (is(c.net.priceLine, c.net.legacy.priceLine)) {
       const [feed, at, line, challengerOver] = decodeAbiParameters(
         [{ type: "address" }, { type: "uint64" }, { type: "int256" }, { type: "bool" }],
         params,
       );
       return { kind: "price-line", feed, at, line, challengerOver };
     }
-    if (r === c.net.upDown.toLowerCase()) {
+    if (is(c.net.upDown, c.net.legacy.upDown)) {
       const [feed, start, end, challengerUp] = decodeAbiParameters(
         [{ type: "address" }, { type: "uint64" }, { type: "uint64" }, { type: "bool" }],
         params,

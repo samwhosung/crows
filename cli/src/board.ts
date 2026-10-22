@@ -98,7 +98,9 @@ export async function buildBoard(c: Clients, opts: BoardOpts = {}): Promise<Boar
   const prices = priceCache(c.net.name);
   const oursSet = new Set((opts.ours ?? []).map((a) => a.toLowerCase()));
   const isOurs = (a: Address) => (oursSet.size ? oursSet.has(a.toLowerCase()) : true);
-  const builtIn = new Set([c.net.closerCall, c.net.upDown, c.net.priceLine, c.net.duelBet ?? "0x"].map((a) => a.toLowerCase()));
+  const builtIn = new Set(
+    [c.net.closerCall, c.net.upDown, c.net.priceLine, c.net.duelBet ?? "0x", ...Object.values(c.net.legacy).flat()].map((a) => a.toLowerCase()),
+  );
   const gameInfo = new Map<string, GameInfo | null>();
   const infoOf = async (a: Address) => {
     const k = a.toLowerCase();
