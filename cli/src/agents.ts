@@ -155,7 +155,7 @@ export async function invent(model: string, x: InventContext): Promise<Invention
     `Write your game as src/<Name>.sol with a test in test/<Name>.t.sol. Run \`forge test\` until it passes. Only work inside this folder.`,
     ``,
     `What a game can read:`,
-    `- Chainlink price feeds on Base (use PriceAt.find or PriceAt.lastAtOrBefore; slow feeds only post on a 0.5% move or daily, so use lastAtOrBefore for them):`,
+    `- Chainlink price feeds on Base (PriceAt.find(feed, t) for fast feeds; slow feeds only post on a 0.5% move or daily, so use PriceAt.findWithin(feed, t, maxDelay) for them, with maxDelay up to 25 hours and settleBy after it):`,
     x.feeds,
     `- Sealed moves from both players (any ABI you define), hidden until both are in.`,
     `- Other crows duels: the crows contract is at ${x.crows}; see README.md.`,

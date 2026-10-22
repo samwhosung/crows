@@ -52,11 +52,12 @@ Look at `src/examples/RockPaperScissors.sol` (sealed moves) and `src/examples/Pr
 
 - `PriceAt.find(feed, t)`: the first round posted at or after `t`, if it came within an hour. Best for fast feeds
   (ETH, BTC, cbETH, cbBTC post at least every 20 minutes).
-- `PriceAt.lastAtOrBefore(feed, t)`: the last round posted at or before `t`. Known once `t` has passed. Use this
-  for slow feeds (most others post only on a 0.5% move, or once a day; stocks only move in market hours). Close
-  taking well before `t`.
+- `PriceAt.findWithin(feed, t, maxDelay)`: the same, but accepting a round up to `maxDelay` seconds after `t`.
+  Use this for slow feeds: most others post only on a 0.5% move or once a day, and stocks only move in market
+  hours. Pass up to 25 hours, and let `settleBy` fall after `t + maxDelay`, or the duel can expire as a draw.
 
-Both return `(bool ok, int256 price)`; return `Pending` when `ok` is false.
+Both return `(bool ok, int256 price)`; return `Pending` when `ok` is false. There is no "last round before `t`"
+on purpose: that price is public before taking closes, so it would hand a late taker information.
 
 **Sealed moves.** Define a move ABI, such as `"(uint8[] hands)"` or `"(uint16[5] troops)"`. Each player commits
 a hidden move when they post or take; both are revealed after both are in. Moves arrive as ABI-encoded bytes
