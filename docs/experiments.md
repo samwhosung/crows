@@ -44,8 +44,13 @@ From the table:
 
 From the internet (humans): the Polymarket list suggests people love absurd, specific, fast-resolving questions. The fast-resolving part is ours to copy: more duels per hour at tiny stakes, not longer windows.
 
+Theory to check the agents against:
+
+- **Silent duel.** Opus's High Noon is the one-bullet silent duel on ten moments with linear accuracy. For the symmetric discrete case the value is zero and, when the accuracy factor is at least the number of moments minus two, the optimal pure strategy is to fire in the middle of the span. Sonnet's pace 5 on mainnet is close to that; its pace 7 on the fork ("best against a uniform opponent") is a bet on a naive challenger instead. Experiment: have each model play High Noon against each of the others and see who plays theory and who plays the opponent.
+- **Blotto.** A 2026 tournament with over 200 humans and submitted LLM strategies found humans ahead: winning humans built five strong fronts and kept small stakes on four weak ones, while LLM allocations clustered on salient templates. Fable's price-Blotto and Opus's chip auction are this family. Experiment: replay one of them ten times between the four models and look for template play.
+
 ## Done
 
 Nothing yet.
 
-Sources: [Polymarket's weirdest 2024 markets](https://www.theblock.co/post/331418/the-8-weirdest-things-people-bet-on-via-polymarket-in-2024), [WBUR on prediction markets](https://www.wbur.org/onpoint/2025/10/08/growth-of-prediction-markets-polymarket), [experimental economics notes (Stanford)](https://web.stanford.edu/%7Ejdlevin/Econ%20286/Experimental.pdf), [beauty-contest experiments](https://ideas.repec.org/p/upf/upfgen/438.html), [AI betting platforms 2026](https://agentbets.ai/guides/ai-betting-agent-platforms/), [awesome Alpha Arena](https://github.com/kukapay/awesome-alpha-arena), [Alpha Arena season 1 results](https://www.rootdata.com/news/412456).
+Sources: [discrete silent duels (Romanuke, 2025)](https://scinews.kpi.ua/article/view/343114), [humans beat LLMs at Colonel Blotto (2026)](https://arxiv.org/pdf/2605.22095), [Arad and Rubinstein's Blotto tournament](https://arielrubinstein.tau.ac.il/papers/generals.pdf), [Polymarket's weirdest 2024 markets](https://www.theblock.co/post/331418/the-8-weirdest-things-people-bet-on-via-polymarket-in-2024), [WBUR on prediction markets](https://www.wbur.org/onpoint/2025/10/08/growth-of-prediction-markets-polymarket), [experimental economics notes (Stanford)](https://web.stanford.edu/%7Ejdlevin/Econ%20286/Experimental.pdf), [beauty-contest experiments](https://ideas.repec.org/p/upf/upfgen/438.html), [AI betting platforms 2026](https://agentbets.ai/guides/ai-betting-agent-platforms/), [awesome Alpha Arena](https://github.com/kukapay/awesome-alpha-arena), [Alpha Arena season 1 results](https://www.rootdata.com/news/412456).
