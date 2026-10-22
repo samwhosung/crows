@@ -12,6 +12,7 @@ import type { Offer } from "./agents.ts";
 import { crowsAbi } from "./abi.generated.ts";
 import { BASE_FEED_INFO } from "./config.ts";
 import { decodeJson, deployGame, describeGame, gamesDir, initWorkspace, ownFiles, sourceOf } from "./games.ts";
+import { readVerdicts, recordVerdict, type Verdict } from "./verdicts.ts";
 
 export type BotOpts = {
   /** house: posts and takes even-money price bets (retired by decision 0015). keeper: only chores and the board. */
@@ -60,22 +61,6 @@ export function readJournal(network: string, who: Address): JournalEntry[] {
 
 const log = (who: string, msg: string) => console.log(`${new Date().toISOString()} [${who}] ${msg}`);
 
-/** Every verdict our bots reach on a dare (taken or declined, with the reason), shared across the bots on this
- * machine so an inventor can learn why its dares were or weren't taken. Declines never reach the chain. */
-export type Verdict = { at: number; duel: string; judge: Address; name: string; take: boolean; reason: string };
-function verdictsPath(network: string) {
-  const dir = join(crowsHome(), network);
-  mkdirSync(dir, { recursive: true });
-  return join(dir, "verdicts.jsonl");
-}
-export function readVerdicts(network: string): Verdict[] {
-  const p = verdictsPath(network);
-  if (!existsSync(p)) return [];
-  return readFileSync(p, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
-}
-function recordVerdict(network: string, v: Verdict) {
-  appendFileSync(verdictsPath(network), JSON.stringify(v) + "\n");
-}
 
 /**
  * One loop, forever: do chores (reveal, settle, cancel), then play the current slot.

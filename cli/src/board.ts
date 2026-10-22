@@ -1,13 +1,14 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Address } from "viem";
+import type { Address, Hex } from "viem";
 import { crowsAbi } from "./abi.generated.ts";
 import type { Clients } from "./chain.ts";
 import { crowsHome } from "./config.ts";
 import { getDuels, decodeCall, winnerOf, fmtUsd, fmtPrice, isOpenFor, type Duel } from "./duels.ts";
 import { roundFrom } from "./rounds.ts";
 import { chainNow } from "./actions.ts";
-import { abiParams, describeGame, sourcifyUrl, type GameInfo } from "./games.ts";
+import { abiParams, decodeJson, describeGame, sourcifyUrl, type GameInfo } from "./games.ts";
+import { readVerdicts } from "./verdicts.ts";
 
 export type PlayerRow = {
   address: Address;
@@ -31,7 +32,10 @@ export type GameRow = {
   rules: string;
   inventor: Address;
   inventorName: string;
+  pitch: string | null; // the inventor's on-chain note on its first dare
   duels: number;
+  taken: number; // dares that found a taker (live or settled)
+  expired: number; // dares nobody took
   sourceUrl: string | null;
 };
 
@@ -52,6 +56,10 @@ export type DuelRow = {
   take?: string; // CLI command to take it, for open duels
   read?: string; // CLI command to read the game's code, for open duels on published games
   notes?: { name: string; text: string }[]; // players' one-line reasons, recorded on-chain before the result
+  declines?: { name: string; reason: string }[]; // our bots that looked and passed, with their reasons
+  moves?: { a: string | null; b: string | null }; // revealed moves in plain form (a price, a side, or JSON)
+  prices?: Record<string, string>; // the feed prices the result rests on, once known
+  byInventor?: boolean; // the challenger is the game's inventor (false: a dare on someone else's game)
   takeBy?: number;
   gameAddress?: Address;
 };
@@ -105,6 +113,10 @@ export async function buildBoard(c: Clients, opts: BoardOpts = {}): Promise<Boar
   const builtIn = new Set(
     [c.net.closerCall, c.net.upDown, c.net.priceLine, c.net.duelBet ?? "0x", ...Object.values(c.net.legacy).flat()].map((a) => a.toLowerCase()),
   );
+  const verdicts = readVerdicts(c.net.name);
+  // Who invented each game: the challenger of the first duel on it.
+  const inventorOf = new Map<string, Address>();
+  for (const d of duels) if (!inventorOf.has(d.resolver.toLowerCase())) inventorOf.set(d.resolver.toLowerCase(), d.a.player);
   const gameInfo = new Map<string, GameInfo | null>();
   const infoOf = async (a: Address) => {
     const k = a.toLowerCase();
@@ -170,8 +182,11 @@ export async function buildBoard(c: Clients, opts: BoardOpts = {}): Promise<Boar
       }
     }
     const isOpen = isOpenFor(d, undefined, t);
-    if (d.state === "settled" || d.state === "live" || isOpen) {
-      const r = await duelRow(c, d, nameOf, prices, await infoOf(d.resolver));
+    const expiredDare = d.state === "cancelled" && !builtIn.has(d.resolver.toLowerCase());
+    if (d.state === "settled" || d.state === "live" || isOpen || expiredDare) {
+      const r = await duelRow(c, d, nameOf, prices, await infoOf(d.resolver), inventorOf.get(d.resolver.toLowerCase()));
+      const declined = verdicts.filter((v) => v.duel === d.id.toString() && !v.take);
+      if (declined.length) r.declines = declined.map((v) => ({ name: v.name, reason: v.reason }));
       // Each player's on-chain note: written once, before the duel was decided. The challenger's is the pitch.
       const n = (
         await Promise.all(
@@ -196,13 +211,17 @@ export async function buildBoard(c: Clients, opts: BoardOpts = {}): Promise<Boar
   }
   for (const ds of byGame.values()) {
     const info = await infoOf(ds[0].resolver);
+    const [pitch] = await c.pub.readContract({ address: c.net.crows, abi: crowsAbi, functionName: "noteOf", args: [ds[0].id, ds[0].a.player] });
     games.push({
       address: ds[0].resolver,
       name: info?.name ?? short(ds[0].resolver),
       rules: info?.rules ?? "",
       inventor: ds[0].a.player,
       inventorName: nameOf(ds[0].a.player),
+      pitch: pitch || null,
       duels: ds.length,
+      taken: ds.filter((d) => d.state === "live" || d.state === "settled").length,
+      expired: ds.filter((d) => d.state === "cancelled").length,
       sourceUrl: c.net.name === "base" ? sourcifyUrl(c.net.chainId, ds[0].resolver) : null,
     });
   }
@@ -240,6 +259,7 @@ async function duelRow(
   nameOf: (a: Address) => string,
   prices: ReturnType<typeof priceCache>,
   info: GameInfo | null,
+  inventor?: Address,
 ): Promise<DuelRow> {
   const aName = nameOf(d.a.player);
   const bName = d.b.player === "0x0000000000000000000000000000000000000000" ? "" : nameOf(d.b.player);
@@ -250,12 +270,16 @@ async function duelRow(
   let time = Number(d.takeBy);
   let take: string | undefined;
   let read: string | undefined;
+  let moves: DuelRow["moves"];
+  let priceMap: Record<string, string> | undefined;
   const g = d.game;
   if (g.kind === "closer-call") {
     time = Number(g.at);
     const ca = decodeCall(d.a.move);
     const cb = decodeCall(d.b.move);
     const p = d.state === "settled" ? await prices.get(c, g.feed, g.at) : null;
+    moves = { a: ca ? fmtPrice(ca) : null, b: cb ? fmtPrice(cb) : null };
+    if (p) priceMap = { at: fmtPrice(p) };
     summary =
       d.state === "open"
         ? `${aName} has a sealed call for ETH at ${hhmm(g.at)}. Closest call wins $${fmtUsd(d.a.stake + d.stakeB)}.`
@@ -266,11 +290,13 @@ async function duelRow(
     time = Number(g.end);
     const side = g.challengerUp ? "UP" : "DOWN";
     const other = g.challengerUp ? "DOWN" : "UP";
+    moves = { a: side, b: bName ? other : null };
     if (d.state === "open") {
       summary = `${aName} says ETH goes ${side} from ${hhmm(g.start)} to ${hhmm(g.end)}. Take ${other} for $${stakeB} to win $${fmtUsd(d.a.stake + d.stakeB)}.`;
     } else {
       const [p0, p1] =
         d.state === "settled" ? await Promise.all([prices.get(c, g.feed, g.start), prices.get(c, g.feed, g.end)]) : [null, null];
+      if (p0 && p1) priceMap = { start: fmtPrice(p0), end: fmtPrice(p1) };
       summary = `ETH ${hhmm(g.start)}→${hhmm(g.end)}: ${aName} ${side}, ${bName} ${other}` + (p0 && p1 ? `. ${fmtPrice(p0)} → ${fmtPrice(p1)}.` : ".");
     }
     take = `crows accept ${d.id}`;
@@ -278,6 +304,8 @@ async function duelRow(
     time = Number(g.at);
     const side = g.challengerOver ? "OVER" : "UNDER";
     const p = d.state === "settled" ? await prices.get(c, g.feed, g.at) : null;
+    moves = { a: side, b: bName ? (g.challengerOver ? "UNDER" : "OVER") : null };
+    if (p) priceMap = { at: fmtPrice(p), line: fmtPrice(g.line) };
     summary = `ETH at ${hhmm(g.at)} vs ${fmtPrice(g.line)}: ${aName} ${side}` + (bName ? `, ${bName} ${g.challengerOver ? "UNDER" : "OVER"}` : "") + (p ? `. Price ${fmtPrice(p)}.` : ".");
     take = `crows accept ${d.id}`;
   } else if (g.kind === "duel-bet") {
@@ -293,15 +321,31 @@ async function duelRow(
     time = Number(d.settleBy);
     const name = info?.name ?? `game ${short(d.resolver)}`;
     const needsMove = !!info && abiParams(info.moveAbi).length > 0;
+    const own = !inventor || inventor.toLowerCase() === d.a.player.toLowerCase();
+    const whose = own ? `invented ${name} and dares anyone` : `dares anyone on ${name}`;
+    if (needsMove) {
+      const plain = (m: Hex) => {
+        const j = decodeJson(info!.moveAbi, m);
+        if (!j) return null;
+        const vals = Object.values(j);
+        return vals.length === 1 ? (typeof vals[0] === "string" ? vals[0] : JSON.stringify(vals[0])) : JSON.stringify(j);
+      };
+      moves = { a: plain(d.a.move), b: plain(d.b.move) };
+    }
     summary =
       d.state === "open"
-        ? `${aName} invented ${name} and dares anyone: $${stakeA} against your $${stakeB}.`
-        : `${name}: ${aName} against ${bName}.`;
+        ? `${aName} ${whose}: $${stakeA} against your $${stakeB}.`
+        : d.state === "cancelled"
+          ? `${aName} ${own ? `invented ${name} and dared anyone` : `dared anyone on ${name}`}. Nobody took it.`
+          : `${name}: ${aName} against ${bName}.`;
     take = needsMove ? `crows accept ${d.id} --move '<JSON for ${info!.moveAbi}>'` : `crows accept ${d.id}`;
     read = `crows game show ${d.id} --source`;
   }
   if (d.state === "settled") summary += w ? ` ${nameOf(w)} wins $${fmtUsd(d.a.stake + d.b.stake)}.` : " Draw, stakes returned.";
   return {
+    moves,
+    prices: priceMap,
+    byInventor: g.kind === "custom" ? !inventor || inventor.toLowerCase() === d.a.player.toLowerCase() : undefined,
     id: d.id.toString(),
     game: g.kind === "custom" ? (info?.name ?? "custom") : g.kind,
     gameAddress: g.kind === "custom" ? d.resolver : undefined,

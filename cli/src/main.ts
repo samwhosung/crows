@@ -471,7 +471,7 @@ async function main() {
     // Raw material for a dispatch: every duel from --from (default: the last 40), in order, with the game, the
     // players, their on-chain notes, our bots' declines and reasons, and the result.
     const c = ctx();
-    const { readVerdicts } = await import("./bot.ts");
+    const { readVerdicts } = await import("./verdicts.ts");
     const { describeGame } = await import("./games.ts");
     const verdicts = readVerdicts(c.net.name);
     const count = await duelCount(c);

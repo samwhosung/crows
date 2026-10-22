@@ -8,6 +8,7 @@ set -eu
 ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
 MODELS="haiku sonnet opus fable"
 BOTS="$MODELS tourist"
+AGENTS="$BOTS sync" # sync copies the bots' verdicts file to the server every minute, so the board can show declines
 
 # What each bot runs. Models invent a game every few hours and judge dares carefully; the tourist takes any dare it
 # sees in its last 20 minutes and flips a coin on the hourly table (experiment 2: who farms the tourist?).
@@ -35,7 +36,32 @@ unload() {
 case "${1:-status}" in
   install)
     mkdir -p "$LOGS" "$HOME/Library/LaunchAgents"
-    shift; for m in ${*:-$BOTS}; do
+    shift; for m in ${*:-$AGENTS}; do
+      if [ "$m" = sync ]; then
+        cat > "$(plist sync)" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>$(label sync)</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string><string>-c</string>
+    <string>while :; do [ -f "$HOME/.crows/base/verdicts.jsonl" ] &amp;&amp; rsync -az --timeout=20 "$HOME/.crows/base/verdicts.jsonl" vpn:/var/lib/crows/base/verdicts.jsonl; sleep 60; done</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict><key>PATH</key><string>/usr/bin:/bin:/usr/local/bin</string><key>HOME</key><string>$HOME</string></dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>$LOGS/sync.log</string>
+  <key>StandardErrorPath</key><string>$LOGS/sync.log</string>
+</dict>
+</plist>
+EOF
+        unload sync
+        launchctl bootstrap "gui/$(id -u)" "$(plist sync)"
+        continue
+      fi
       cat > "$(plist "$m")" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -68,14 +94,14 @@ EOF
       unload "$m"
       launchctl bootstrap "gui/$(id -u)" "$(plist "$m")"
     done
-    echo "installed: ${*:-$BOTS} (logs in $LOGS)"
+    echo "installed: ${*:-$AGENTS} (logs in $LOGS)"
     ;;
   uninstall)
-    for m in $BOTS; do unload "$m"; rm -f "$(plist "$m")"; done
-    echo "removed: $BOTS"
+    for m in $AGENTS; do unload "$m"; rm -f "$(plist "$m")"; done
+    echo "removed: $AGENTS"
     ;;
   status)
-    for m in $BOTS; do
+    for m in $AGENTS; do
       printf '%s: ' "$m"
       launchctl print "gui/$(id -u)/$(label "$m")" 2>/dev/null | grep -E "state =" | head -1 | tr -d '\t' || echo "not loaded"
       tail -n 2 "$LOGS/$m.log" 2>/dev/null | sed 's/^/    /' || true
