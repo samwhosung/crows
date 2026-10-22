@@ -16,7 +16,20 @@ export type View = {
 /** A strategy's answer: a direction for up-down, and a call of the price at windowEnd for closer-call. */
 export type Pick = { direction: "up" | "down" | "skip"; call: number | null; reason?: string };
 
-export type Strategy = { name: string; decide(v: View): Promise<Pick> };
+import type { InventContext, Invention, Offer, Verdict } from "./agents.ts";
+
+/**
+ * A bot's mind. `decide` plays the hourly ETH table; `judge` looks at a game someone else invented and decides
+ * whether to take it; `invent` writes a new game. Each part is optional: a bot does only what its strategy can.
+ */
+export type Strategy = {
+  name: string;
+  decide?(v: View): Promise<Pick>;
+  judge?(o: Offer): Promise<Verdict>;
+  invent?(x: InventContext): Promise<Invention>;
+  /** Only look at challenges whose taking closes within this many seconds (the tourist arrives late). */
+  judgeWithin?: number;
+};
 
 /** Calls the current price and takes no side: the random-walk answer. */
 export const flat: Strategy = {
@@ -67,7 +80,7 @@ function parsePick(text: string): Pick {
   return { direction, call, reason: typeof j.reason === "string" ? j.reason.slice(0, 280) : undefined };
 }
 
-function run(cmd: string, args: string[], input: string, timeoutMs: number, cwd?: string): Promise<string> {
+export function run(cmd: string, args: string[], input: string, timeoutMs: number, cwd?: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const p = spawn(cmd, args, { cwd, stdio: ["pipe", "pipe", "pipe"] });
     let out = "";
@@ -84,11 +97,14 @@ function run(cmd: string, args: string[], input: string, timeoutMs: number, cwd?
   });
 }
 
-/** Asks a Claude model through the Claude Code CLI (headless, no tools). */
-export function claude(model: string): Strategy {
+/** Asks a Claude model through the Claude Code CLI. Judging and the hourly call use no tools. */
+export function claude(model: string, persona = "careful"): Strategy {
   const cwd = mkdtempSync(join(tmpdir(), "crows-claude-"));
+  const agents = import("./agents.ts");
   return {
     name: `claude:${model}`,
+    judge: async (o) => (await agents).judge(model, persona, o, cwd),
+    invent: async (x) => (await agents).invent(model, x),
     async decide(v) {
       const prompt = [
         `You are a trading bot in a real-money duel against another bot. Stakes are small but real.`,
@@ -119,12 +135,39 @@ export function claude(model: string): Strategy {
   };
 }
 
-/** Any program: gets the View as JSON on stdin, prints a Pick as JSON on stdout. */
+/**
+ * A tourist: takes every game it's offered (late, after the careful bots had their look) and flips a coin on
+ * the hourly table. Uses a small Claude model only to pick a legal move.
+ */
+export function tourist(model = "haiku"): Strategy {
+  const cwd = mkdtempSync(join(tmpdir(), "crows-tourist-"));
+  const agents = import("./agents.ts");
+  return {
+    name: `tourist:${model}`,
+    judgeWithin: 20 * 60,
+    judge: async (o) => (await agents).judge(model, "tourist", o, cwd),
+    async decide(v) {
+      return { direction: Math.random() < 0.5 ? "up" : "down", call: null, reason: "Coin flip. Feeling lucky." };
+    },
+  };
+}
+
+/**
+ * Any program. For the hourly table it gets the View as JSON on stdin and prints a Pick. To judge games, it gets
+ * {"kind":"judge", ...Offer} and prints {"take":true|false,"move":[...],"reason":"..."}; a program that doesn't
+ * judge can print {"take":false}.
+ */
 export function command(cmd: string): Strategy {
   return {
     name: `cmd:${cmd}`,
     async decide(v) {
       return parsePick(await run("sh", ["-c", cmd], JSON.stringify(v), 120_000));
+    },
+    async judge(o) {
+      const out = await run("sh", ["-c", cmd], JSON.stringify({ kind: "judge", ...o }), 120_000);
+      const m = out.match(/\{[\s\S]*\}/);
+      const j = m ? JSON.parse(m[0]) : {};
+      return { take: j.take === true, move: j.move ?? undefined, reason: typeof j.reason === "string" ? j.reason.slice(0, 280) : "" };
     },
   };
 }
@@ -133,6 +176,7 @@ export function strategyFrom(spec: string): Strategy {
   if (spec === "flat") return flat;
   if (spec === "trend") return trend;
   if (spec.startsWith("claude:")) return claude(spec.slice(7));
+  if (spec === "tourist" || spec.startsWith("tourist:")) return tourist(spec.split(":")[1] || "haiku");
   if (spec.startsWith("cmd:")) return command(spec.slice(4));
-  throw new Error(`unknown strategy "${spec}" (flat | trend | claude:<model> | cmd:<shell command>)`);
+  throw new Error(`unknown strategy "${spec}" (flat | trend | claude:<model> | tourist[:<model>] | cmd:<shell command>)`);
 }

@@ -1,0 +1,12 @@
+# The game kit, as it builds inside the repo. `crows game init` makes a private copy with absolute paths.
+[profile.default]
+src = "src"
+test = "test"
+out = "out"
+libs = ["../contracts/lib"]
+solc = "0.8.30"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
+bytecode_hash = "none"
+remappings = ["crows/=../contracts/src/", "crows-test/=../contracts/test/", "forge-std/=../contracts/lib/forge-std/src/"]

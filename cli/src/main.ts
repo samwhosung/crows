@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { clients, explain, send, type Clients } from "./chain.ts";
 import { newWallet, loadWallet, listWallets } from "./wallet.ts";
 import { getDuel, getDuels, isOpenFor, involves, decodeCall, fmtUsd, fmtPrice } from "./duels.ts";
-import { challenge, accept, tick, settleOne, cancel, setName, note, parseTime, chainNow, type GameName } from "./actions.ts";
+import { challenge, challengeGame, accept, tick, settleOne, cancel, setName, note, parseTime, chainNow, type GameName } from "./actions.ts";
 import { latestRound, roundsSince, feedDecimals } from "./rounds.ts";
 import { buildBoard } from "./board.ts";
 import { crowsAbi, resolverAbi, mockFeedAbi } from "./abi.generated.ts";
@@ -36,11 +36,24 @@ Play
   crows note <id> <text>            put your reasoning on-chain (once, before the result)
   crows settle <id>  |  crows cancel <id>
 
+Invent a game (any agent: write a contract, publish it, dare others)
+  crows game init                    a Foundry workspace with the kit and its README (read it first)
+  crows game deploy <ContractName>   build, deploy and publish the source on Sourcify
+  crows game show <address|duel id> [--source]   a game's rules, and its verified source code
+  crows challenge <game address> --params '<JSON>' [--move '<JSON>'] --take-by +1h --settle-by +8h --stake 1
+  crows challenge duel-bet --duel <id> --back a|b --stake 1      bet on someone else's duel
+  crows accept <id> --move '<JSON>'  take a game that needs a sealed move
+  crows feeds                        the price feeds games can read
+
 Run a bot (loops forever: plays every window, reveals, settles)
-  crows bot --strategy flat|trend|claude:<model>|cmd:"<program>"  [--stake 1 --slot 3600 --max 10]
+  crows bot --strategy flat|trend|claude:<model>|tourist[:<model>]|cmd:"<program>"  [--stake 1 --slot 3600 --max 10]
+      --invent 4h    invent a new game every 4 hours (claude strategies)
+      --hourly       also play the hourly ETH table
+      --max-take 2   largest stake to put up when taking someone's game
       cmd: your program gets the market on stdin as JSON and prints {"direction":"up|down|skip","call":<price>}
-  crows bot --role house            post UP and DOWN every window; take even-money challenges
-      --board <file>  also write the scoreboard data there about once a minute
+  crows bot --role keeper           no bets: settle, expire and cancel everyone's duels, and write the board
+      --board <file>  write the scoreboard data there about once a minute
+      --ours <addr,addr>  our own bots, so the board can mark outsiders
 
 Options: --as <wallet>  --network base|local  --json
 Times: unix seconds, ISO 8601, +30m, +2h, or next-hour. Prices in dollars (e.g. 2441.25).
@@ -84,8 +97,28 @@ const { values: o, positionals: pos } = parseArgs({
     max: { type: "string" },
     interval: { type: "string" },
     board: { type: "string" },
+    params: { type: "string" },
+    move: { type: "string" },
+    duel: { type: "string" },
+    back: { type: "string" },
+    dir: { type: "string" },
+    invent: { type: "string" },
+    hourly: { type: "boolean" },
+    "max-take": { type: "string" },
+    ours: { type: "string" },
+    source: { type: "boolean" },
   },
 });
+
+/** Parse a JSON flag value, with a readable error. */
+function jsonArg(name: string, v: string | undefined): unknown {
+  if (v === undefined) return undefined;
+  try {
+    return JSON.parse(v);
+  } catch {
+    throw new Error(`--${name} must be JSON, e.g. --${name} '["ETH", "+2h"]'`);
+  }
+}
 
 const json = (x: unknown) => JSON.stringify(x, (_, v) => (typeof v === "bigint" ? v.toString() : v), 2);
 function out(data: unknown, human?: string) {
@@ -196,6 +229,51 @@ async function main() {
     return out(games, games.map((g) => `${g.key}  ${g.address}\n  ${g.rules}`).join("\n\n"));
   }
 
+  if (cmd === "feeds") {
+    const c = ctx();
+    const { BASE_FEED_INFO } = await import("./config.ts");
+    const rows = c.net.name === "base" ? BASE_FEED_INFO : Object.entries(c.net.feeds).map(([symbol, address]) => ({ symbol, address }));
+    return out(
+      rows,
+      rows.map((f: any) => `${f.symbol.padEnd(8)} ${f.address}  ${f.name ?? ""}${f.heartbeat ? `  (new round on a ${f.deviation}% move, at least every ${f.heartbeat >= 3600 ? f.heartbeat / 3600 + "h" : f.heartbeat / 60 + "m"})` : ""}`).join("\n"),
+    );
+  }
+
+  if (cmd === "game") {
+    const { initWorkspace, deployGame, describeGame, sourceOf, ownFiles, sourcifyUrl, gamesDir } = await import("./games.ts");
+    const sub = pos[1];
+    if (sub === "init") {
+      const dir = initWorkspace(o.dir ?? gamesDir());
+      return out({ dir }, `game workspace ready: ${dir}\nRead ${join(dir, "README.md")}, write your game in src/, test it with \`forge test\` there, then \`crows game deploy <ContractName>\`.`);
+    }
+    if (sub === "deploy") {
+      const c = ctx(true);
+      if (!pos[2]) throw new Error("crows game deploy <ContractName> [--dir <workspace>]");
+      const d = await deployGame(c, pos[2], o.dir ?? gamesDir());
+      return out(d, `deployed ${d.info.name} at ${d.address}${d.verified ? `\nsource published: ${sourcifyUrl(c.net.chainId, d.address)}` : c.net.dev ? "" : "\nsource NOT published (verification failed); takers can't read it"}\nchallenge on it: crows challenge ${d.address} --params '<JSON for ${d.info.paramsAbi}>'${d.info.moveAbi ? ` --move '<JSON for ${d.info.moveAbi}>'` : ""} --take-by +1h --settle-by +6h --stake 1`);
+    }
+    if (sub === "show") {
+      const c = ctx();
+      let address = pos[2] as Address;
+      if (!address) throw new Error("crows game show <address | duel id> [--source]");
+      if (!isAddress(address)) address = (await getDuel(c, BigInt(address))).resolver;
+      const [info, src] = await Promise.all([describeGame(c, address), sourceOf(c, address)]);
+      const files = ownFiles(src.files);
+      const data = { ...info, sourcePublished: src.verified, sourceUrl: src.verified ? sourcifyUrl(c.net.chainId, address) : null, source: o.source || o.json ? files : undefined };
+      return out(
+        data,
+        [
+          `${info.name}  ${address}`,
+          `params: ${info.paramsAbi || "-"}   move: ${info.moveAbi || "-"}   evidence: ${info.evidenceAbi || "-"}`,
+          info.rules,
+          src.verified ? `source: ${data.sourceUrl}` : "source: NOT published. Only the rules text above, which the code may not follow.",
+          ...(o.source ? Object.entries(files).map(([p, t]) => `\n// ---- ${p}\n${t}`) : []),
+        ].join("\n"),
+      );
+    }
+    throw new Error("crows game init | deploy <ContractName> | show <address|duel id> [--source]");
+  }
+
   if (cmd === "list") {
     const c = ctx();
     const me = c.account?.address;
@@ -253,9 +331,38 @@ async function main() {
   if (cmd === "challenge") {
     const c = ctx(true);
     const game = pos[1] as GameName;
-    if (!["closer-call", "up-down", "price-line"].includes(game)) throw new Error("game: closer-call | up-down | price-line");
     if (!o.stake) throw new Error("--stake <usdc> is required");
     const t = await chainNow(c);
+    if (o.opponent && !isAddress(o.opponent)) throw new Error("--opponent must be an address");
+    if (pos[1] === "duel-bet" || isAddress(pos[1] ?? "")) {
+      let address = pos[1] as Address;
+      let params = jsonArg("params", o.params);
+      let takeBy = o["take-by"] ? parseTime(o["take-by"], t) : undefined;
+      let settleBy = o["settle-by"] ? parseTime(o["settle-by"], t) : undefined;
+      if (pos[1] === "duel-bet") {
+        if (!c.net.duelBet) throw new Error(`duel-bet isn't deployed on ${c.net.name}`);
+        if (!o.duel || (o.back !== "a" && o.back !== "b")) throw new Error("crows challenge duel-bet --duel <id> --back a|b --stake 1");
+        const d = await getDuel(c, BigInt(o.duel));
+        address = c.net.duelBet;
+        params = [o.duel, o.back === "a"];
+        takeBy ??= d.takeBy; // taking closes when that duel's taking closes
+        settleBy ??= d.settleBy + 2n * 3600n;
+      }
+      if (!takeBy || !settleBy) throw new Error("--take-by and --settle-by are required (e.g. --take-by +1h --settle-by +8h)");
+      const r = await challengeGame(c, {
+        game: address,
+        params,
+        move: jsonArg("move", o.move),
+        stake: o.stake,
+        theirStake: o["their-stake"],
+        opponent: o.opponent as Address | undefined,
+        takeBy,
+        revealBy: o["reveal-by"] ? parseTime(o["reveal-by"], t) : undefined,
+        settleBy,
+      });
+      return out(r, `posted duel #${r.id} (${r.tx})`);
+    }
+    if (!["closer-call", "up-down", "price-line"].includes(game)) throw new Error("game: closer-call | up-down | price-line | duel-bet | <game address>");
     const at = parseTime(o.at ?? "next-hour", t);
     if (o.opponent && !isAddress(o.opponent)) throw new Error("--opponent must be an address");
     const r = await challenge(c, {
@@ -278,7 +385,7 @@ async function main() {
 
   if (cmd === "accept") {
     const c = ctx(true);
-    const tx = await accept(c, BigInt(pos[1]), o.call);
+    const tx = await accept(c, BigInt(pos[1]), o.call, jsonArg("move", o.move));
     return out({ id: pos[1], tx }, `accepted duel #${pos[1]} (${tx})`);
   }
 
@@ -334,8 +441,10 @@ async function main() {
     const c = ctx(true);
     const { runBot } = await import("./bot.ts");
     const { strategyFrom } = await import("./strategies.ts");
-    const role = (o.role ?? (o.strategy ? "player" : "house")) as "house" | "player";
-    if (role === "player" && !o.strategy) throw new Error("a player bot needs --strategy flat|trend|claude:<model>|cmd:<shell>");
+    const role = (o.role ?? (o.strategy ? "player" : "keeper")) as "house" | "player" | "keeper";
+    if (!["house", "player", "keeper"].includes(role)) throw new Error("--role player|keeper|house");
+    if (role === "player" && !o.strategy) throw new Error("a player bot needs --strategy flat|trend|claude:<model>|tourist|cmd:<shell>");
+    const ours = o.ours?.split(",").map((a) => a.trim()).filter((a) => isAddress(a)) as Address[] | undefined;
     return runBot(c, {
       role,
       strategy: o.strategy ? strategyFrom(o.strategy) : undefined,
@@ -346,6 +455,11 @@ async function main() {
       maxExposure: o.max ?? "10",
       interval: Number(o.interval ?? 20),
       board: o.board,
+      hourly: Boolean(o.hourly),
+      inventEvery: o.invent ? Number(parseTime(`+${o.invent}`, 0n)) : undefined,
+      maxTake: o["max-take"] ?? "2",
+      workspace: o.dir,
+      ours,
     });
   }
 

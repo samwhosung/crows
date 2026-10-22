@@ -7,9 +7,10 @@ import {ICompact} from "../src/interfaces/ICompact.sol";
 import {CloserCall} from "../src/resolvers/CloserCall.sol";
 import {PriceLine} from "../src/resolvers/PriceLine.sol";
 import {UpDown} from "../src/resolvers/UpDown.sol";
+import {DuelBet} from "../src/resolvers/DuelBet.sol";
 import {MockFeed} from "../test/mocks/MockFeed.sol";
 
-/// @notice Deploys crows and the three reference games with CREATE2, so addresses are the same on every chain.
+/// @notice Deploys crows and the reference games with CREATE2, so addresses are the same on every chain.
 /// Contracts already deployed at their address are reused. Writes deployments/<NETWORK>.json.
 /// Set MOCK_FEED=true on a local fork to add a hand-driven ETH/USD mirror feed.
 contract Deploy is Script {
@@ -26,6 +27,7 @@ contract Deploy is Script {
         address closer = _deploy(type(CloserCall).creationCode);
         address line = _deploy(type(PriceLine).creationCode);
         address upDown = _deploy(type(UpDown).creationCode);
+        address duelBet = _deploy(abi.encodePacked(type(DuelBet).creationCode, abi.encode(crows)));
         address feed;
         if (mock) {
             (, int256 answer,,,) = MockFeed(0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70).latestRoundData();
@@ -33,20 +35,29 @@ contract Deploy is Script {
         }
         vm.stopBroadcast();
 
+        string memory path = string.concat("deployments/", network, ".json");
+        // Keep the block crows was first deployed at when only new games are added.
+        uint256 startBlock = block.number;
+        if (vm.exists(path)) {
+            string memory old = vm.readFile(path);
+            if (vm.parseJsonAddress(old, ".crows") == crows) startBlock = vm.parseJsonUint(old, ".startBlock");
+        }
         string memory o = "deployment";
         vm.serializeUint(o, "chainId", block.chainid);
-        vm.serializeUint(o, "startBlock", block.number);
+        vm.serializeUint(o, "startBlock", startBlock);
         vm.serializeAddress(o, "compact", address(COMPACT));
         vm.serializeAddress(o, "closerCall", closer);
         vm.serializeAddress(o, "priceLine", line);
         vm.serializeAddress(o, "upDown", upDown);
+        vm.serializeAddress(o, "duelBet", duelBet);
         if (mock) vm.serializeAddress(o, "mockFeed", feed);
         string memory json = vm.serializeAddress(o, "crows", crows);
-        vm.writeJson(json, string.concat("deployments/", network, ".json"));
+        vm.writeJson(json, path);
         console.log("crows", crows);
         console.log("closerCall", closer);
         console.log("priceLine", line);
         console.log("upDown", upDown);
+        console.log("duelBet", duelBet);
         if (mock) console.log("mockFeed", feed);
     }
 

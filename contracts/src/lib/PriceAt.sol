@@ -29,9 +29,48 @@ library PriceAt {
     uint256 private constant PHASE_SHIFT = 64;
 
     function firstAtOrAfter(address feed, uint64 t, uint80 roundId) internal view returns (bool ok, int256 answer) {
+        return _first(feed, t, roundId, MAX_DELAY);
+    }
+
+    /// @notice The same price as `firstAtOrAfter`, found on-chain, so a game needs no evidence and any keeper can
+    /// settle it. ok = false until that round is posted, or if it came more than an hour after t.
+    function find(address feed, uint64 t) internal view returns (bool ok, int256 answer) {
+        return findWithin(feed, t, MAX_DELAY);
+    }
+
+    /// @notice The first round at or after t, if it was posted no later than t + maxDelay. For slow feeds that
+    /// only post on a 0.5% move or once a day, pass up to 25 hours and give the duel time to settle after that.
+    /// Rounds of one phase are posted in time order, so this is a binary search over the feed's current phase:
+    /// about 20 reads however far back t is.
+    function findWithin(address feed, uint64 t, uint256 maxDelay) internal view returns (bool ok, int256 answer) {
+        if (feed.code.length == 0) return (false, 0); // a call to no code can't be caught below
+        uint80 latest;
+        try IAggregatorV3(feed).latestRoundData() returns (uint80 rid, int256, uint256, uint256, uint80) {
+            latest = rid;
+        } catch {
+            return (false, 0);
+        }
+        uint80 phase = uint80((uint256(latest) >> PHASE_SHIFT) << PHASE_SHIFT);
+        uint64 lo = 1;
+        uint64 hi = uint64(latest);
+        if (hi == 0) return (false, 0);
+        (bool okH,, uint256 th) = _round(feed, phase + hi);
+        if (!okH || th < t) return (false, 0); // not posted yet
+        while (lo < hi) {
+            uint64 mid = lo + (hi - lo) / 2;
+            (bool okM,, uint256 tm) = _round(feed, phase + mid);
+            if (!okM) return (false, 0);
+            if (tm >= t) hi = mid;
+            else lo = mid + 1;
+        }
+        // Re-check with the proof rules: current phase, predecessor before t, within the delay, positive price.
+        return _first(feed, t, phase + lo, maxDelay);
+    }
+
+    function _first(address feed, uint64 t, uint80 roundId, uint256 maxDelay) private view returns (bool, int256) {
         if (!_currentPhase(feed, roundId)) return (false, 0);
         (bool ok1, int256 a1, uint256 t1) = _round(feed, roundId);
-        if (!ok1 || t1 < t || t1 > uint256(t) + MAX_DELAY || a1 <= 0) return (false, 0);
+        if (!ok1 || t1 < t || t1 > uint256(t) + maxDelay || a1 <= 0) return (false, 0);
         if (uint64(roundId) > 1) {
             // Not the phase's first round: its predecessor must predate t, or r isn't the first at/after t.
             (bool ok0,, uint256 t0) = _round(feed, roundId - 1);

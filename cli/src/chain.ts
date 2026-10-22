@@ -7,6 +7,7 @@ import {
   type Account,
   type Address,
   type Hash,
+  type Hex,
   type PublicClient,
   type WalletClient,
   type Transport,
@@ -81,6 +82,23 @@ export async function send(
     c.lastWrite = Date.now();
     if (receipt.status !== "success") throw new Error(`transaction ${hash} reverted`);
     return hash;
+  } catch (e) {
+    throw new Error(explain(e));
+  }
+}
+
+/** Deploy contract bytecode (no constructor arguments) and return its address. */
+export async function deployBytecode(c: Clients, bytecode: Hex): Promise<{ address: Address; tx: Hash }> {
+  if (!c.wallet || !c.account) throw new Error("no wallet: pass --as <name> or set CROWS_KEY");
+  const gas = await c.pub.estimateGas({ account: c.account, data: bytecode });
+  try {
+    const hash = await c.wallet.sendTransaction({ data: bytecode, gas: (gas * 12n) / 10n } as any);
+    const receipt = await c.pub.waitForTransactionReceipt({ hash, timeout: 120_000 });
+    c.lastWrite = Date.now();
+    if (receipt.status !== "success" || !receipt.contractAddress) throw new Error(`deploy ${hash} failed`);
+    // Wait until the node we read from has the code too (public RPCs lag behind each other).
+    for (let i = 0; i < 15 && !(await c.pub.getCode({ address: receipt.contractAddress })); i++) await sleep(LAG_RETRY_MS);
+    return { address: receipt.contractAddress, tx: hash };
   } catch (e) {
     throw new Error(explain(e));
   }

@@ -1,29 +1,23 @@
 # Status
-_Updated 2026-10-22 by claude-opus-5-5_
+_Updated 2026-10-22 by claude-fable-5-1_
 
 ## Now
-- **Live on Base mainnet since 2026-10-22.** Contracts, wallets and runbook are in `docs/ops.md`.
-  - The house bot runs on the droplet (`ssh vpn`). It posts both sides of "ETH up or down next hour" ten minutes before each hour, takes even-money challenges, and settles everyone's duels.
-  - The Claude Opus bot runs on Sam's Mac as a LaunchAgent and writes its reasoning on-chain before each result.
-  - Scoreboard: https://crows.188-166-209-89.sslip.io/
-  - Code: https://github.com/samwhosung/crows (public)
-- **Budget:** about 30 USDC and 0.008 ETH from Sam. The house has 15 USDC, Opus 10, and the treasury keeps the rest for refills.
-
-- **Launch is paused.** The ETH up-or-down table drifted away from Sam's direction (bots inventing their own games). It keeps running because it costs almost nothing, but don't do the outreach or posts in `docs/launch.md`.
+- **Cycle 1 (decision 0015): agents against agents.** Four Claude models (Haiku, Sonnet, Opus, Fable), each with a wallet, playing the price games against each other, inventing games as contracts, judging each other's games from the verified source, and betting on duels. Question: what do they do to each other, and who ends up with the money?
+  - Fast loop first on a local fork with the clock fast-forwarded (`ops/fork.sh`), then Base mainnet with $1–2 stakes.
+  - The house becomes the keeper (settles, expires, cancels, writes the board). It posts nothing.
+- **Live on Base mainnet since 2026-10-22.** Contracts, wallets and runbook in `docs/ops.md`. Scoreboard: https://crows.188-166-209-89.sslip.io/. Code: https://github.com/samwhosung/crows.
+- **Money:** about 30 USDC and 0.008 ETH across the wallets. Four bots want roughly 10 USDC each, so the next boundary asks Sam for about 50 USDC and 0.01 ETH.
 
 ## Next
-- Agree the showcase concept with Sam in one paragraph, in his words, before building anything. The current proposal: Claude bots write brand-new games as contracts and dare each other to play them.
+- Cycle 1 boundary report to Sam: what the four models did on the fork and on mainnet, five lines.
+- Then one experiment per cycle, each on all four models. Sources: the table, stolen formats, what people say online, many candidates with a hard filter.
 
 ## Later
-- Only if outsiders show up:
-  - move the bots to a small server;
-  - third-party bets on duels;
-  - more assets;
-  - a game for the hour's range, where volatility gives real edge;
-  - publish the CLI to npm.
-- Earlier ideas stay parked until there's demand: SP1 resolvers (0006), adapters (0008), and invented-game resolvers.
+- Only if outsiders show up: more assets and stakes, publish the CLI to npm, an MCP server.
+- Parked until there's demand: SP1 resolvers (0006), adapters (0008).
 
 ## Watch
 - Legal treatment of real-money bets between bots (flagged in 0011, not researched).
-- The Compact v1 behaviour that crows relies on, noted in `contracts/src/interfaces/ICompact.sol`.
-- Chainlink ETH/USD on Base: heartbeat and deviation settings, and any phase change. A phase change mid-duel turns it into a refund.
+- The Compact v1 behaviour crows relies on, noted in `contracts/src/interfaces/ICompact.sol`.
+- Chainlink feeds on Base: heartbeats, deviations, phase changes (a phase change mid-duel means a refund).
+- Public RPC lag: `mainnet.base.org` answers from several nodes; the CLI retries reads right after its own writes.

@@ -1,7 +1,7 @@
 # 0012 — Launch as "take the house's money": a flat house, up-or-down bets, one Claude bot, profit as the score
 
 date: 2026-10-22
-status: accepted
+status: superseded by 0015
 model: claude-opus-5-5
 
 ## Context

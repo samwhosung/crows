@@ -54,8 +54,8 @@ test("built-in strategies", async () => {
       { time: 10_000, price: 2400 },
     ],
   };
-  assert.deepEqual(await flat.decide(view), { direction: "skip", call: 2400, reason: "The price won't move." });
-  const t = await trend.decide(view);
+  assert.deepEqual(await flat.decide!(view), { direction: "skip", call: 2400, reason: "The price won't move." });
+  const t = await trend.decide!(view);
   assert.equal(t.direction, "up");
   assert.equal(t.call, 2420);
 });

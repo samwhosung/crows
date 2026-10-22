@@ -1,9 +1,10 @@
 import { encodeAbiParameters, parseUnits, zeroAddress, zeroHash, type Address, type Hex, decodeEventLog } from "viem";
-import { crowsAbi } from "./abi.generated.ts";
+import { crowsAbi, resolverAbi } from "./abi.generated.ts";
 import { send, ensureAllowance, explain, type Clients } from "./chain.ts";
 import { getDuel, getDuels, involves, decodeCall, type Duel } from "./duels.ts";
 import { roundFrom, feedDecimals } from "./rounds.ts";
 import { sealMove, findMove } from "./store.ts";
+import { abiParams, describeGame, encodeJson } from "./games.ts";
 
 export const now = () => BigInt(Math.floor(Date.now() / 1000));
 
@@ -85,18 +86,27 @@ export async function challenge(c: Clients, o: ChallengeOpts): Promise<{ id: big
     );
   }
 
-  await ensureAllowance(c, c.net.usdc, c.net.crows, stakeA);
-  const terms = {
-    resolver,
-    params,
-    token: c.net.usdc,
-    stakeA,
-    stakeB,
-    opponent: o.opponent ?? zeroAddress,
-    takeBy,
-    revealBy,
-    settleBy,
-  };
+  return postTerms(
+    c,
+    { resolver, params, token: c.net.usdc, stakeA, stakeB, opponent: o.opponent ?? zeroAddress, takeBy, revealBy, settleBy },
+    commitment,
+  );
+}
+
+type Terms = {
+  resolver: Address;
+  params: Hex;
+  token: Address;
+  stakeA: bigint;
+  stakeB: bigint;
+  opponent: Address;
+  takeBy: bigint;
+  revealBy: bigint;
+  settleBy: bigint;
+};
+
+async function postTerms(c: Clients, terms: Terms, commitment: Hex): Promise<{ id: bigint; tx: Hex }> {
+  await ensureAllowance(c, terms.token, c.net.crows, terms.stakeA);
   const tx = await send(c, { address: c.net.crows, abi: crowsAbi, functionName: "challenge", args: [terms, commitment] });
   const receipt = await c.pub.getTransactionReceipt({ hash: tx });
   for (const log of receipt.logs) {
@@ -109,7 +119,56 @@ export async function challenge(c: Clients, o: ChallengeOpts): Promise<{ id: big
   throw new Error(`challenge sent (${tx}) but no Challenged event found`);
 }
 
-export async function accept(c: Clients, id: bigint, call?: string): Promise<Hex> {
+export type GameChallengeOpts = {
+  game: Address;
+  params: unknown; // JSON: an array in paramsAbi order, or an object by parameter name
+  move?: unknown; // JSON for moveAbi, if the game has moves (sealed until both sides are in)
+  stake: string;
+  theirStake?: string;
+  opponent?: Address;
+  takeBy: bigint;
+  revealBy?: bigint;
+  settleBy: bigint;
+};
+
+/** Challenge on any game, by address. Params and moves are plain JSON, encoded from the game's own describe(). */
+export async function challengeGame(c: Clients, o: GameChallengeOpts): Promise<{ id: bigint; tx: Hex }> {
+  const me = c.account!.address;
+  const info = await describeGame(c, o.game);
+  const t = await chainNow(c);
+  const params = encodeJson(c, info.paramsAbi, o.params, t);
+  const hasMoves = abiParams(info.moveAbi).length > 0;
+  const revealBy = o.revealBy ?? (hasMoves ? o.takeBy + 30n * 60n : o.takeBy);
+  const [ok, reason] = await c.pub.readContract({
+    address: o.game,
+    abi: resolverAbi,
+    functionName: "validate",
+    args: [params, o.takeBy, revealBy, o.settleBy],
+  });
+  if (!ok) throw new Error(`${info.name} rejects these terms: ${reason}`);
+  let commitment: Hex = zeroHash;
+  if (hasMoves) {
+    if (o.move === undefined) throw new Error(`${info.name} needs your sealed move: --move '<JSON for ${info.moveAbi}>'`);
+    commitment = sealMove(c.net, me, encodeJson(c, info.moveAbi, o.move, t), `${info.name} move`);
+  }
+  return postTerms(
+    c,
+    {
+      resolver: o.game,
+      params,
+      token: c.net.usdc,
+      stakeA: parseUnits(o.stake, 6),
+      stakeB: parseUnits(o.theirStake ?? o.stake, 6),
+      opponent: o.opponent ?? zeroAddress,
+      takeBy: o.takeBy,
+      revealBy,
+      settleBy: o.settleBy,
+    },
+    commitment,
+  );
+}
+
+export async function accept(c: Clients, id: bigint, call?: string, move?: unknown): Promise<Hex> {
   const me = c.account!.address;
   const d = await getDuel(c, id);
   if (d.state !== "open") throw new Error(`duel ${id} is ${d.state}, not open`);
@@ -121,6 +180,12 @@ export async function accept(c: Clients, id: bigint, call?: string): Promise<Hex
     commitment = sealMove(c.net, me, move, `call ${call} in duel ${id}`);
   } else if (call) {
     throw new Error(`duel ${id} is a ${d.game.kind} duel and takes no call`);
+  } else if (d.game.kind === "custom") {
+    const info = await describeGame(c, d.resolver);
+    if (abiParams(info.moveAbi).length) {
+      if (move === undefined) throw new Error(`duel ${id} (${info.name}) needs your sealed move: --move '<JSON for ${info.moveAbi}>'`);
+      commitment = sealMove(c.net, me, encodeJson(c, info.moveAbi, move, await chainNow(c)), `${info.name} move in duel ${id}`);
+    }
   }
   await ensureAllowance(c, d.token, c.net.crows, d.stakeB);
   return send(c, { address: c.net.crows, abi: crowsAbi, functionName: "accept", args: [id, commitment] });

@@ -10,6 +10,10 @@ contract PriceAtHarness {
     function firstAtOrAfter(address feed, uint64 t, uint80 rid) external view returns (bool, int256) {
         return PriceAt.firstAtOrAfter(feed, t, rid);
     }
+
+    function find(address feed, uint64 t) external view returns (bool, int256) {
+        return PriceAt.find(feed, t);
+    }
 }
 
 /// @notice Against the real Chainlink ETH/USD feed on Base, at a pinned block.
@@ -24,6 +28,23 @@ contract PriceAtTest is Test {
 
     function _t(uint80 r) internal view returns (uint256 u) {
         (,,, u,) = IAggregatorV3(ETH_USD).getRoundData(r);
+    }
+
+    function test_find_agreesWithTheProvenRound_onTheRealFeed() public view {
+        (uint80 latest,,,,) = IAggregatorV3(ETH_USD).latestRoundData();
+        for (uint80 back = 1; back < 40; back += 7) {
+            uint80 r = latest - back;
+            (, int256 answer,,,) = IAggregatorV3(ETH_USD).getRoundData(r);
+            uint64 t = uint64((_t(r - 1) + _t(r)) / 2);
+            (bool ok, int256 p) = h.find(ETH_USD, t);
+            assertTrue(ok);
+            assertEq(p, answer);
+            (ok, p) = h.find(ETH_USD, uint64(_t(r)));
+            assertTrue(ok, "a round posted exactly at t counts");
+            assertEq(p, answer);
+        }
+        (bool ok2,) = h.find(ETH_USD, uint64(_t(latest)) + 1);
+        assertFalse(ok2, "not posted yet");
     }
 
     function test_realFeed_onlyTheFirstRoundAtOrAfterTCounts() public view {

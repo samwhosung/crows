@@ -7,6 +7,7 @@ import { crowsHome } from "./config.ts";
 import { getDuels, decodeCall, winnerOf, fmtUsd, fmtPrice, isOpenFor, type Duel } from "./duels.ts";
 import { roundFrom } from "./rounds.ts";
 import { chainNow } from "./actions.ts";
+import { abiParams, describeGame, sourcifyUrl, type GameInfo } from "./games.ts";
 
 export type PlayerRow = {
   address: Address;
@@ -17,6 +18,18 @@ export type PlayerRow = {
   draws: number;
   pnl: string; // USDC, signed
   pnlUnits: string;
+  ours: boolean; // one of our own bots (false = an outsider)
+};
+
+/** A game somebody published, with the duels played on it. */
+export type GameRow = {
+  address: Address;
+  name: string;
+  rules: string;
+  inventor: Address;
+  inventorName: string;
+  duels: number;
+  sourceUrl: string | null;
 };
 
 export type DuelRow = {
@@ -34,8 +47,10 @@ export type DuelRow = {
   time: number; // when the duel was decided (or will be)
   summary: string; // one human line
   take?: string; // CLI command to take it, for open duels
+  read?: string; // CLI command to read the game's code, for open duels on published games
   notes?: { name: string; text: string }[]; // players' one-line reasons, recorded on-chain before the result
   takeBy?: number;
+  gameAddress?: Address;
 };
 
 export type Board = {
@@ -45,9 +60,13 @@ export type Board = {
   chainTime: number;
   totals: { duels: number; settled: number; players: number; volume: string };
   players: PlayerRow[];
+  games: GameRow[]; // games published by players (not the built-in ones), newest first
+  outsiders: { players: number; duels: number; games: number }; // activity by addresses that aren't ours
   open: DuelRow[];
   recent: DuelRow[];
 };
+
+export type BoardOpts = { ours?: Address[] };
 
 /** Prices are immutable once proven, so cache them per feed and time. */
 function priceCache(network: string) {
@@ -73,10 +92,19 @@ function priceCache(network: string) {
 const short = (a: Address) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 const hhmm = (t: bigint) => new Date(Number(t) * 1000).toISOString().slice(11, 16) + " UTC";
 
-export async function buildBoard(c: Clients): Promise<Board> {
+export async function buildBoard(c: Clients, opts: BoardOpts = {}): Promise<Board> {
   const duels = await getDuels(c);
   const t = await chainNow(c);
   const prices = priceCache(c.net.name);
+  const oursSet = new Set((opts.ours ?? []).map((a) => a.toLowerCase()));
+  const isOurs = (a: Address) => (oursSet.size ? oursSet.has(a.toLowerCase()) : true);
+  const builtIn = new Set([c.net.closerCall, c.net.upDown, c.net.priceLine, c.net.duelBet ?? "0x"].map((a) => a.toLowerCase()));
+  const gameInfo = new Map<string, GameInfo | null>();
+  const infoOf = async (a: Address) => {
+    const k = a.toLowerCase();
+    if (!gameInfo.has(k)) gameInfo.set(k, await describeGame(c, a).catch(() => null));
+    return gameInfo.get(k)!;
+  };
 
   const players = new Set<Address>();
   for (const d of duels) {
@@ -96,7 +124,7 @@ export async function buildBoard(c: Clients): Promise<Board> {
   const row = (a: Address) => {
     const k = a.toLowerCase();
     if (!rows.has(k))
-      rows.set(k, { address: a, name: nameOf(a), duels: 0, wins: 0, losses: 0, draws: 0, pnl: "0", pnlUnits: "0", pnlN: 0n });
+      rows.set(k, { address: a, name: nameOf(a), duels: 0, wins: 0, losses: 0, draws: 0, pnl: "0", pnlUnits: "0", ours: isOurs(a), pnlN: 0n });
     return rows.get(k)!;
   };
 
@@ -126,23 +154,49 @@ export async function buildBoard(c: Clients): Promise<Board> {
         ra.pnlN -= d.a.stake;
       }
     }
-    if (d.state === "settled" || d.state === "live") {
-      const r = await duelRow(c, d, nameOf, prices);
-      // Each player's on-chain note: written once, before the duel was decided.
+    const isOpen = isOpenFor(d, undefined, t);
+    if (d.state === "settled" || d.state === "live" || isOpen) {
+      const r = await duelRow(c, d, nameOf, prices, await infoOf(d.resolver));
+      // Each player's on-chain note: written once, before the duel was decided. The challenger's is the pitch.
       const n = (
         await Promise.all(
-          [d.a.player, d.b.player].map(async (p) => {
+          [d.a.player, d.b.player].filter((p) => p !== "0x0000000000000000000000000000000000000000").map(async (p) => {
             const [text] = await c.pub.readContract({ address: c.net.crows, abi: crowsAbi, functionName: "noteOf", args: [d.id, p] });
             return { name: nameOf(p), text };
           }),
         )
       ).filter((x) => !!x.text);
       if (n.length) r.notes = n;
-      recent.push(r);
+      (isOpen ? open : recent).push(r);
     }
-    if (isOpenFor(d, undefined, t)) open.push(await duelRow(c, d, nameOf, prices));
   }
   prices.save();
+
+  // Games players published themselves (anything that isn't one of the built-in games).
+  const games: GameRow[] = [];
+  const byGame = new Map<string, Duel[]>();
+  for (const d of duels) {
+    if (builtIn.has(d.resolver.toLowerCase())) continue;
+    byGame.set(d.resolver.toLowerCase(), [...(byGame.get(d.resolver.toLowerCase()) ?? []), d]);
+  }
+  for (const ds of byGame.values()) {
+    const info = await infoOf(ds[0].resolver);
+    games.push({
+      address: ds[0].resolver,
+      name: info?.name ?? short(ds[0].resolver),
+      rules: info?.rules ?? "",
+      inventor: ds[0].a.player,
+      inventorName: nameOf(ds[0].a.player),
+      duels: ds.length,
+      sourceUrl: c.net.name === "base" ? sourcifyUrl(c.net.chainId, ds[0].resolver) : null,
+    });
+  }
+  games.reverse();
+  const outsiders = {
+    players: [...players].filter((p) => !isOurs(p)).length,
+    duels: duels.filter((d) => !isOurs(d.a.player) || (d.b.player !== "0x0000000000000000000000000000000000000000" && !isOurs(d.b.player))).length,
+    games: games.filter((g) => !isOurs(g.inventor)).length,
+  };
 
   const playerRows = [...rows.values()]
     .map(({ pnlN, ...r }) => ({ ...r, pnl: (pnlN < 0n ? "-" : "+") + fmtUsd(pnlN < 0n ? -pnlN : pnlN), pnlUnits: pnlN.toString() }))
@@ -157,6 +211,8 @@ export async function buildBoard(c: Clients): Promise<Board> {
     chainTime: Number(t),
     totals: { duels: duels.length, settled: duels.filter((d) => d.state === "settled").length, players: rows.size, volume: fmtUsd(volume) },
     players: playerRows,
+    games,
+    outsiders,
     open,
     recent: recent.slice(0, 100),
   };
@@ -167,6 +223,7 @@ async function duelRow(
   d: Duel,
   nameOf: (a: Address) => string,
   prices: ReturnType<typeof priceCache>,
+  info: GameInfo | null,
 ): Promise<DuelRow> {
   const aName = nameOf(d.a.player);
   const bName = d.b.player === "0x0000000000000000000000000000000000000000" ? "" : nameOf(d.b.player);
@@ -176,6 +233,7 @@ async function duelRow(
   let summary = "";
   let time = Number(d.takeBy);
   let take: string | undefined;
+  let read: string | undefined;
   const g = d.game;
   if (g.kind === "closer-call") {
     time = Number(g.at);
@@ -206,14 +264,31 @@ async function duelRow(
     const p = d.state === "settled" ? await prices.get(c, g.feed, g.at) : null;
     summary = `ETH at ${hhmm(g.at)} vs ${fmtPrice(g.line)}: ${aName} ${side}` + (bName ? `, ${bName} ${g.challengerOver ? "UNDER" : "OVER"}` : "") + (p ? `. Price ${fmtPrice(p)}.` : ".");
     take = `crows accept ${d.id}`;
+  } else if (g.kind === "duel-bet") {
+    time = Number(d.settleBy);
+    const side = g.challengerBacksA ? "the challenger" : "the taker";
+    summary =
+      d.state === "open"
+        ? `${aName} backs ${side} in duel #${g.duel}, $${stakeA}. Back the other side for $${stakeB}.`
+        : `Bet on duel #${g.duel}: ${aName} backs ${side}, ${bName} the other.`;
+    take = `crows accept ${d.id}`;
+    read = `crows show ${g.duel}`;
   } else {
-    summary = `custom game ${short(d.resolver)}`;
-    take = `crows show ${d.id}`;
+    time = Number(d.settleBy);
+    const name = info?.name ?? `game ${short(d.resolver)}`;
+    const needsMove = !!info && abiParams(info.moveAbi).length > 0;
+    summary =
+      d.state === "open"
+        ? `${aName} invented ${name} and dares anyone: $${stakeA} against your $${stakeB}.`
+        : `${name}: ${aName} against ${bName}.`;
+    take = needsMove ? `crows accept ${d.id} --move '<JSON for ${info!.moveAbi}>'` : `crows accept ${d.id}`;
+    read = `crows game show ${d.id} --source`;
   }
   if (d.state === "settled") summary += w ? ` ${nameOf(w)} wins $${fmtUsd(d.a.stake + d.b.stake)}.` : " Draw, stakes returned.";
   return {
     id: d.id.toString(),
-    game: g.kind,
+    game: g.kind === "custom" ? (info?.name ?? "custom") : g.kind,
+    gameAddress: g.kind === "custom" ? d.resolver : undefined,
     state: d.state,
     a: d.a.player,
     b: d.b.player,
@@ -226,6 +301,7 @@ async function duelRow(
     time,
     summary,
     take: d.state === "open" ? take : undefined,
+    read: d.state === "open" ? read : undefined,
     takeBy: d.state === "open" ? Number(d.takeBy) : undefined,
   };
 }

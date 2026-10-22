@@ -20,6 +20,7 @@ export type Game =
   | { kind: "closer-call"; feed: Address; at: bigint }
   | { kind: "price-line"; feed: Address; at: bigint; line: bigint; challengerOver: boolean }
   | { kind: "up-down"; feed: Address; start: bigint; end: bigint; challengerUp: boolean }
+  | { kind: "duel-bet"; duel: bigint; challengerBacksA: boolean }
   | { kind: "custom"; resolver: Address };
 
 export type Duel = {
@@ -59,6 +60,10 @@ export function decodeGame(c: Clients, resolver: Address, params: Hex): Game {
         params,
       );
       return { kind: "up-down", feed, start, end, challengerUp };
+    }
+    if (c.net.duelBet && r === c.net.duelBet.toLowerCase()) {
+      const [duel, challengerBacksA] = decodeAbiParameters([{ type: "uint256" }, { type: "bool" }], params);
+      return { kind: "duel-bet", duel, challengerBacksA };
     }
   } catch {}
   return { kind: "custom", resolver };
