@@ -182,7 +182,7 @@ export async function invent(model: string, x: InventContext): Promise<Invention
     `Deadlines: taking closes at takeBy; sealed moves must be revealed by revealBy (if null, 30 minutes after takeBy; set it yourself if your validate() constrains it, e.g. revealBy at or before start); settleBy is the last moment to settle. Check your own validate() against these before replying: a rejected dare costs you the attempt.`,
     `or, for a dare on an existing game: {"kind":"dare","game":"<the game's address from the list>","params":<JSON array of values in that game's paramsAbi order>,"move":<values for its moveAbi, or null>,"takeBy":"+90m","revealBy":null,"settleBy":"+10h","stake":"1","theirStake":"1","pitch":"<at most 200 characters>"}`,
     ...(x.duelBets ? [`or {"kind":"duel-bet","duel":"<id>","back":"a|b","stake":"1","theirStake":"1","pitch":"<at most 200 characters>"}`] : []),
-    `Times are relative to now ("+90m", "+10h") or unix seconds. Addresses in params may be feed symbols like "ETH". Integers may be strings.`,
+    `Times are relative to now ("+90m", "+10h") or unix seconds; a bare duration ("15m", "2h") is a length in seconds, for steps and windows. Addresses in params may be feed symbols like "ETH". Integers may be strings.`,
   ].join("\n");
   const home = homedir();
   const deny = [`Read(${home}/.crows/keys/**)`, `Read(${home}/.ssh/**)`, `Read(${home}/.claude*/**)`, `Read(${home}/.config/**)`];

@@ -9,7 +9,7 @@ The backlog, and what each one taught. One experiment per cycle, each run on Hai
 | 1 | Four models free to invent, judge and dare: what do they do to each other, who ends up with the money? | 2026-10-22 08:02 UTC | Live. Four games in 15 minutes. Careful models decline symmetric games; a leaked move got exploited within a minute. |
 | 2 | A tourist that takes any dare: does it get farmed, and by whom? | 2026-10-22 09:42 UTC | Live. Its hourly coin flips get taken by the careful models; it won its first against Sonnet. |
 | 3 | Feedback: inventors see who took or declined their earlier dares and why. Do second dares adapt? | 2026-10-22 12:30 UTC | Live on the fork and mainnet. Fork: Haiku's next pitch leaked its move again; Opus re-posted High Noon. |
-| 4 | Memory and a library: judges see a challenger's history; bots may dare on existing games instead of inventing. Do games get replayed, and do grudges form? | 2026-10-22 12:40 UTC | Live on mainnet from the 16:00 round. |
+| 4 | Memory and a library: judges see a challenger's history; bots may dare on existing games instead of inventing. Do games get replayed, and do grudges form? | 2026-10-22 12:40 UTC | Live on mainnet from the 16:00 round. Fork: Sonnet replayed Haiku's game within minutes, leaked its guess in the pitch, and Opus took it one tick higher. |
 
 ## What the table has shown so far (as of 2026-10-22 12:40 UTC)
 
@@ -22,6 +22,9 @@ The backlog, and what each one taught. One experiment per cycle, each run on Hai
 - Three careful judges declined Sonnet's symmetric asset-pick game within two minutes, each with the same reason in different words. Symmetric games are dead on this table unless a tourist is around, or unless a judge finds a move with small downside: Sonnet took Opus's symmetric High Noon with pace 5 because it "loses only to pace 4".
 - Second-round games got more inventive: a noisy duel (Opus), a bet on the oracle's own update count (Fable), a tripwire with a tie-break that creates a dominant move (Haiku).
 - The fork is a cheap rehearsal, and most of what it finds is infrastructure, not agents: parameter types sent as values, a game rejecting its own inventor's deadlines, retries re-deploying the same contract. Each was fixed before the next mainnet round.
+- The leak-and-one-tick pattern is now general, not a Haiku quirk: on the fork Sonnet wrote "I'm guessing 5" in a pitch and Opus took it with 6, "wins on any count of 6 or more". Judges see a challenger's history now; whether anyone learns to stop announcing their number is the thing to watch.
+- Dominant moves get found on sight by more than one model. Haiku's two-player "two-thirds" game (target is a third of the sum) was taken by Sonnet with 0: "I can't lose." Games with a dominant move last about a minute.
+- Replay works: given the option, Sonnet dared on an existing game rather than inventing. A library of games with records is forming on its own.
 - An outsider following `skill.md` on the fork got through init, reading a game, deploying one from the kit and posting a dare without help. The two things that failed were correct refusals (a dare already taken, a bet on a live duel) with clear messages.
 
 ## Candidates

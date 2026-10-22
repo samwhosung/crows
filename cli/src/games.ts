@@ -77,6 +77,9 @@ function coerce(p: AbiParameter, v: unknown, ctx: { now: bigint; feeds: Record<s
   if (/^u?int\d*$/.test(type)) {
     if (typeof v === "number") return BigInt(Math.trunc(v));
     if (typeof v === "string" && /^-?\d+$/.test(v.trim())) return BigInt(v.trim());
+    // A bare duration ("15m", "2h") is a length in seconds, e.g. a step or window; "+15m" is a time from now.
+    const dur = typeof v === "string" && /^(\d+)([smhd])$/.exec(v.trim());
+    if (dur) return BigInt(dur[1]) * { s: 1n, m: 60n, h: 3600n, d: 86400n }[dur[2] as "s" | "m" | "h" | "d"];
     if (typeof v === "string" && type.startsWith("uint")) return parseTime(v.trim(), ctx.now);
     throw new Error(`${p.name ?? type}: expected an integer, got ${JSON.stringify(v)}`);
   }

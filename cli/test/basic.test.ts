@@ -69,3 +69,13 @@ test("encodeJson accepts a single array parameter given flat or nested", async (
   const two = encodeJson(c, "(address feed,uint64 at)", ["0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70", "1792656000"], 0n);
   assert.equal(two.length, 2 + 64 * 2);
 });
+
+test("encodeJson reads bare durations as seconds and +durations as times", async () => {
+  const { encodeJson } = await import("../src/games.ts");
+  const { decodeAbiParameters } = await import("viem");
+  const c = { net: { feeds: {} } } as any;
+  const enc = encodeJson(c, "(uint64 step,uint64 at)", ["15m", "+2h"], 1_000_000n);
+  const [step, at] = decodeAbiParameters([{ type: "uint64" }, { type: "uint64" }], enc);
+  assert.equal(step, 900n);
+  assert.equal(at, 1_007_200n);
+});
