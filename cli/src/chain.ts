@@ -46,7 +46,8 @@ function chainOf(net: Network): Chain {
 
 export function clients(net: Network, account?: Account): Clients {
   const chain = chainOf(net);
-  const opts = { retryCount: 2, retryDelay: 400, batch: { batchSize: 50, wait: 10 } };
+  // A local fork answers cold reads through its upstream, slowly: give it time and smaller batches.
+  const opts = { retryCount: 2, retryDelay: 400, timeout: net.dev ? 120_000 : 10_000, batch: { batchSize: net.dev ? 10 : 50, wait: 10 } };
   // On an error or a rate limit, the next endpoint gets the request. Reads right after our own writes are
   // re-checked anyway (see send), so a lagging fallback node can't make a bot act on stale state.
   const transport = net.fallbackRpcUrls.length
