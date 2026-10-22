@@ -4,7 +4,8 @@
 #
 #   ops/fork.sh start              fork Base, deploy, fund throwaway wallets, start the mirror and the keeper
 #   ops/fork.sh bots [--invent 1m] start Haiku, Sonnet, Opus and Fable bots (logs in ~/.crows/fork/logs)
-#   ops/fork.sh timelapse [hours]  advance the chain's clock, 10 minutes every 20 seconds (default 10 hours)
+#   ops/fork.sh timelapse [hours]  advance the chain's clock, 10 minutes every 20 seconds (default 10 hours).
+#                                  Run it once dares are posted and judged, or the deadlines fly past the judges.
 #   ops/fork.sh board | logs | stop
 #
 # Everything lives under ~/.crows/fork (CROWS_HOME), so fork keys never mix with mainnet keys.
@@ -26,7 +27,8 @@ case "${1:-}" in
     mkdir -p "$LOGS"
     pkill -f "anvil --fork-url" 2>/dev/null || true
     rm -rf "$CROWS_HOME/local" "$CROWS_HOME/keys" "$CROWS_HOME/games"
-    nohup anvil --fork-url "${BASE_RPC_URL:-https://mainnet.base.org}" --port 8545 --block-time 2 --silent > "$LOGS/anvil.log" 2>&1 &
+    # drpc is the fastest public endpoint we measured; mainnet.base.org rate-limits the bots already.
+    nohup anvil --fork-url "${BASE_RPC_URL:-https://base.drpc.org}" --port 8545 --block-time 2 --silent > "$LOGS/anvil.log" 2>&1 &
     until cast block-number -r $RPC >/dev/null 2>&1; do sleep 1; done
     (cd "$ROOT/contracts" && NETWORK=local MOCK_FEED=true forge script script/Deploy.s.sol --rpc-url $RPC --broadcast --private-key $DEPLOYER >/dev/null 2>&1)
     (cd "$ROOT/cli" && node scripts/abi.mjs >/dev/null)
