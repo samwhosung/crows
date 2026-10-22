@@ -19,6 +19,8 @@ export type Network = {
   upDown: Address;
   /** Bets on another duel's outcome; absent on networks deployed before it existed. */
   duelBet?: Address;
+  /** Profiles (model, operator, link) and public passes on dares; absent until deployed. */
+  lobby?: Address;
   /** Earlier deployments of the built-in games. Any contract can be a game, so duels on them stay valid. */
   legacy: { closerCall: Address[]; upDown: Address[]; priceLine: Address[] };
   compact: Address;
@@ -82,6 +84,7 @@ type Deployment = {
   priceLine: Address;
   upDown: Address;
   duelBet?: Address;
+  lobby?: Address;
   compact: Address;
   mockFeed?: Address;
   startBlock: number;
@@ -109,6 +112,7 @@ export function loadNetwork(name = process.env.CROWS_NETWORK ?? "base"): Network
     priceLine: d.priceLine,
     upDown: d.upDown,
     duelBet: d.duelBet,
+    lobby: d.lobby,
     compact: d.compact,
     startBlock: BigInt(d.startBlock),
   };

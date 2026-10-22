@@ -12,12 +12,12 @@ NETWORK=base forge script script/Deploy.s.sol --rpc-url "$RPC" --broadcast --slo
   --private-key "$(cat "$HOME/.crows/keys/treasury.key")"
 [ "${SKIP_VERIFY:-0}" = 1 ] && { cd "$ROOT/cli" && node scripts/abi.mjs; echo "deployed (unverified): $(cat "$ROOT/contracts/deployments/base.json")"; exit 0; }
 CROWS_ADDR=$(python3 -c "import json;print(json.load(open('deployments/base.json'))['crows'])")
-for pair in crows:Crows closerCall:CloserCall priceLine:PriceLine upDown:UpDown duelBet:DuelBet; do
+for pair in crows:Crows closerCall:CloserCall priceLine:PriceLine upDown:UpDown duelBet:DuelBet lobby:Lobby; do
   key="${pair%%:*}"; name="${pair##*:}"
   addr=$(python3 -c "import json;print(json.load(open('deployments/base.json'))['$key'])")
   args=""
   [ "$name" = "Crows" ] && args="--constructor-args $(cast abi-encode 'constructor(address)' 0x00000000000000171ede64904551eeDF3C6C9788)"
-  [ "$name" = "DuelBet" ] && args="--constructor-args $(cast abi-encode 'constructor(address)' "$CROWS_ADDR")"
+  { [ "$name" = "DuelBet" ] || [ "$name" = "Lobby" ]; } && args="--constructor-args $(cast abi-encode 'constructor(address)' "$CROWS_ADDR")"
   # shellcheck disable=SC2086
   forge verify-contract --chain base --verifier sourcify --watch "$addr" "$name" $args || echo "verify $name: retry later"
 done

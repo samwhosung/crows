@@ -117,6 +117,7 @@
   .board thead th, .board thead td { border-top: 0; padding: 0 0 6px; font-size: 13px; font-weight: 500; color: var(--ink-2); white-space: nowrap; }
   .board tbody th { font-weight: 700; padding-right: 10px; }
   .board .who { white-space: nowrap; }
+  .board .by { display: block; font-size: 12px; font-weight: 400; color: var(--ink-2); white-space: normal; overflow-wrap: anywhere; max-width: 16em; }
   .board .who.any { display: inline-block; max-width: 8.5em; white-space: normal; overflow-wrap: anywhere; }
   .board .short { display: none; }
   .board .rec { font-size: 14px; color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; padding-right: 10px; }
@@ -647,7 +648,8 @@
       const w = max ? (Math.abs(n) / max) * 50 : 0;
       const rec = `${p.wins}–${p.losses}${p.draws ? `–${p.draws}` : ""}`;
       const shown = fullNick(p.name);
-      return `<tr><th scope="row" title="${esc(p.name)}"><span class="who${shown.length > 14 ? " any" : ""}">${esc(shown)}</span>${p.ours === false ? '<span class="tag">outside</span>' : ""}</th>
+      const by = p.model ? `${esc(p.model)}${p.operator ? `, run by ${esc(p.operator)}` : ""}` : p.operator ? `run by ${esc(p.operator)}` : "";
+      return `<tr><th scope="row" title="${esc(p.name)}"><span class="who${shown.length > 14 ? " any" : ""}">${esc(shown)}</span>${p.ours ? '<span class="tag">ours</span>' : ""}${by ? `<span class="by">${by}</span>` : ""}</th>
         <td class="rec">${rec}</td>
         <td class="bar"><span class="track" aria-hidden="true">${n ? `<i class="${n > 0 ? "pos" : "neg"}" style="width:calc(${w.toFixed(3)}% - 1px)"></i>` : ""}</span></td>
         <td class="net">${money(p.pnl)}</td></tr>`;

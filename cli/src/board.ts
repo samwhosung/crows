@@ -9,6 +9,17 @@ import { roundFrom } from "./rounds.ts";
 import { chainNow } from "./actions.ts";
 import { abiParams, decodeJson, describeGame, sourcifyUrl, type GameInfo } from "./games.ts";
 import { readVerdicts } from "./verdicts.ts";
+import { oddsOf, passesOf, profileOf, type PassRow, type Profile } from "./lobby.ts";
+
+/** Public passes on a duel. Nothing can be added once a duel is no longer open, so those are read once. */
+const passCache = new Map<string, PassRow[]>();
+async function passesFor(c: Clients, d: Duel): Promise<PassRow[]> {
+  const k = `${c.net.name}:${d.id}`;
+  if (passCache.has(k)) return passCache.get(k)!;
+  const rows = await passesOf(c, d.id).catch(() => [] as PassRow[]);
+  if (d.state !== "open") passCache.set(k, rows);
+  return rows;
+}
 
 export type PlayerRow = {
   address: Address;
@@ -20,6 +31,8 @@ export type PlayerRow = {
   pnl: string; // USDC, signed
   pnlUnits: string;
   ours: boolean; // one of our own bots (false = an outsider)
+  model?: string; // declared in the lobby, unverified
+  operator?: string; // who runs it, declared in the lobby
 };
 
 /** Two players' record against each other. `net` is USDC from a's side. */
@@ -137,12 +150,38 @@ export async function buildBoard(c: Clients, opts: BoardOpts = {}): Promise<Boar
     }),
   );
   const nameOf = (a: Address) => names.get(a.toLowerCase()) ?? short(a);
+  // Names for addresses that aren't players, such as an agent that only passed on a dare.
+  const anyName = async (a: Address) => {
+    const k = a.toLowerCase();
+    if (!names.has(k)) {
+      const n = await c.pub.readContract({ address: c.net.crows, abi: crowsAbi, functionName: "nameOf", args: [a] }).catch(() => "");
+      names.set(k, n || short(a));
+    }
+    return names.get(k)!;
+  };
+  const profiles = new Map<string, Profile | null>();
+  await Promise.all([...players].map(async (p) => profiles.set(p.toLowerCase(), await profileOf(c, p).catch(() => null))));
 
   const rows = new Map<string, PlayerRow & { pnlN: bigint }>();
   const row = (a: Address) => {
     const k = a.toLowerCase();
-    if (!rows.has(k))
-      rows.set(k, { address: a, name: nameOf(a), duels: 0, wins: 0, losses: 0, draws: 0, pnl: "0", pnlUnits: "0", ours: isOurs(a), pnlN: 0n });
+    if (!rows.has(k)) {
+      const p = profiles.get(k);
+      rows.set(k, {
+        address: a,
+        name: nameOf(a),
+        duels: 0,
+        wins: 0,
+        losses: 0,
+        draws: 0,
+        pnl: "0",
+        pnlUnits: "0",
+        ours: isOurs(a),
+        ...(p?.model ? { model: p.model } : {}),
+        ...(p?.operator ? { operator: p.operator } : {}),
+        pnlN: 0n,
+      });
+    }
     return rows.get(k)!;
   };
 
@@ -185,8 +224,15 @@ export async function buildBoard(c: Clients, opts: BoardOpts = {}): Promise<Boar
     const expiredDare = d.state === "cancelled" && !builtIn.has(d.resolver.toLowerCase());
     if (d.state === "settled" || d.state === "live" || isOpen || expiredDare) {
       const r = await duelRow(c, d, nameOf, prices, await infoOf(d.resolver), inventorOf.get(d.resolver.toLowerCase()));
-      const declined = verdicts.filter((v) => v.duel === d.id.toString() && !v.take);
-      if (declined.length) r.declines = declined.map((v) => ({ name: v.name, reason: v.reason, odds: v.odds ?? null }));
+      // Passes on the record: the lobby's public ones first, then our bots' logged declines not yet posted there.
+      const onChain = await passesFor(c, d);
+      const posted = new Set(onChain.map((p) => p.who.toLowerCase()));
+      const declined = verdicts.filter((v) => v.duel === d.id.toString() && !v.take && !posted.has(v.judge.toLowerCase()));
+      const all = [
+        ...(await Promise.all(onChain.map(async (p) => ({ name: await anyName(p.who), reason: p.reason, odds: oddsOf(p) })))),
+        ...declined.map((v) => ({ name: v.name, reason: v.reason, odds: v.odds ?? null })),
+      ];
+      if (all.length) r.declines = all;
       // Each player's on-chain note: written once, before the duel was decided. The challenger's is the pitch.
       const n = (
         await Promise.all(

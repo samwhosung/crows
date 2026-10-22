@@ -32,8 +32,9 @@ case "${1:-}" in
     until cast block-number -r $RPC >/dev/null 2>&1; do sleep 1; done
     (cd "$ROOT/contracts" && NETWORK=local MOCK_FEED=true forge script script/Deploy.s.sol --rpc-url $RPC --broadcast --private-key $DEPLOYER >/dev/null 2>&1)
     (cd "$ROOT/cli" && node scripts/abi.mjs >/dev/null)
-    # Mainnet's duels are in the fork too; the bots ignore everything before this count.
-    "$CROWS" list --all --json 2>/dev/null | python3 -c 'import sys,json;print(len(json.load(sys.stdin)))' > "$CROWS_HOME/from-duel"
+    # Mainnet's duels are in the fork too; the bots ignore everything before this count. (One call: listing every
+    # duel through a fresh fork is slow, since each read goes upstream.)
+    cast call 0x0B478F46dfa5f6fB984eae4E530747fC664B1CB1 "duelCount()(uint256)" -r $RPC | awk '{print $1}' > "$CROWS_HOME/from-duel"
     for w in keeper $MODELS; do
       a=$(q init "$w" --json | python3 -c 'import sys,json;print(json.load(sys.stdin)["address"])')
       q dev faucet "$a" --usdc 50 --eth 1 >/dev/null

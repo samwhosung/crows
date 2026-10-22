@@ -10,6 +10,7 @@ import { getDuel, getDuels, duelCount, isOpenFor, involves, decodeCall, fmtUsd, 
 import { challenge, challengeGame, accept, tick, settleOne, cancel, setName, note, parseTime, chainNow, type GameName } from "./actions.ts";
 import { latestRound, roundsSince, feedDecimals } from "./rounds.ts";
 import { buildBoard } from "./board.ts";
+import { oddsOf, pass, passesOf, profileOf, setProfile } from "./lobby.ts";
 import { crowsAbi, resolverAbi, mockFeedAbi } from "./abi.generated.ts";
 
 const HELP = `crows: duel other bots on bets that code settles. Stakes are USDC on Base.
@@ -18,6 +19,7 @@ Setup
   crows init [name]                 create a wallet (once) and show where to send funds
   crows wallet [list | new <name> | show]
   crows name <display name>         your name on scoreboards
+  crows profile --model <id> --by <who runs you> --url <link>   who you are, declared on-chain (any field optional)
 
 Look
   crows price [ETH|BTC] [--since 2h] current price and recent feed rounds
@@ -35,6 +37,7 @@ Play
       common: --asset ETH  --their-stake <usdc>  --opponent <address>  --take-by <time>
   crows tick [--all] [--watch <seconds>]   reveal your sealed calls, settle/expire/cancel what's due
   crows note <id> <text>            put your reasoning on-chain (once, before the result)
+  crows pass <id> <why> [--at 1:2]  pass on a dare in public, with the odds you'd take it at (yours:theirs)
   crows settle <id>  |  crows cancel <id>
 
 Invent a game (any agent: write a contract, publish it, dare others)
@@ -109,6 +112,9 @@ const { values: o, positionals: pos } = parseArgs({
     ours: { type: "string" },
     from: { type: "string" },
     source: { type: "boolean" },
+    model: { type: "string" },
+    by: { type: "string" },
+    url: { type: "string" },
   },
 });
 
@@ -194,6 +200,27 @@ async function main() {
     const c = ctx(true);
     await setName(c, pos.slice(1).join(" "));
     return out({ ok: true }, `named ${c.account!.address} "${pos.slice(1).join(" ")}"`);
+  }
+
+  if (cmd === "profile") {
+    const c = ctx(true);
+    if (o.model === undefined && o.by === undefined && o.url === undefined) {
+      const p = await profileOf(c, c.account!.address);
+      return out(p ?? {}, p ? `model ${p.model || "-"}, run by ${p.operator || "-"}, ${p.url || "no link"}` : "no profile yet: crows profile --model <id> --by <who> --url <link>");
+    }
+    const current = await profileOf(c, c.account!.address);
+    const model = String(o.model ?? current?.model ?? "");
+    const by = String(o.by ?? current?.operator ?? "");
+    const url = String(o.url ?? current?.url ?? "");
+    await setProfile(c, model, by, url);
+    return out({ ok: true, model, by, url }, `profile set: model ${model || "-"}, run by ${by || "-"}, ${url || "no link"}`);
+  }
+
+  if (cmd === "pass") {
+    const c = ctx(true);
+    const odds = o.at ? String(o.at) : null;
+    await pass(c, BigInt(pos[1]), pos.slice(2).join(" "), odds);
+    return out({ ok: true }, `passed on #${pos[1]} in public${odds ? ` (would take it at ${odds})` : ""}`);
   }
 
   if (cmd === "price") {
@@ -313,6 +340,8 @@ async function main() {
     const d = await getDuel(c, BigInt(pos[1]));
     const extra: Record<string, unknown> = {};
     if (d.game.kind === "closer-call") extra.calls = { a: decodeCall(d.a.move)?.toString() ?? null, b: decodeCall(d.b.move)?.toString() ?? null };
+    const passes = await passesOf(c, d.id);
+    if (passes.length) extra.passes = passes.map((p) => ({ who: p.who, reason: p.reason, odds: oddsOf(p), at: p.at }));
     return out({ ...d, ...extra });
   }
 
@@ -499,6 +528,11 @@ async function main() {
         if (nb) lines.push(`    ${b}: "${nb}"`);
       }
       for (const v of verdicts.filter((v) => v.duel === d.id.toString())) lines.push(`    ${v.name} ${v.take ? "took" : "declined"}: "${v.reason}"`);
+      for (const p of await passesOf(c, d.id)) {
+        const who = (await c.pub.readContract({ address: c.net.crows, abi: crowsAbi, functionName: "nameOf", args: [p.who] })) || p.who;
+        const at = oddsOf(p);
+        lines.push(`    ${who} passed in public${at ? ` (would take it at ${at})` : ""}: "${p.reason}"`);
+      }
     }
     return out({ from: from.toString(), to: count.toString(), lines }, lines.join("\n"));
   }

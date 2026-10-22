@@ -13,6 +13,7 @@ import { crowsAbi } from "./abi.generated.ts";
 import { BASE_FEED_INFO } from "./config.ts";
 import { decodeJson, deployGame, describeGame, gamesDir, initWorkspace, kindOf, ownFiles, sourceOf, type GameKind } from "./games.ts";
 import { readVerdicts, recordVerdict, type Verdict } from "./verdicts.ts";
+import { pass } from "./lobby.ts";
 
 export type BotOpts = {
   /** house: posts and takes even-money price bets (retired by decision 0015). keeper: only chores and the board. */
@@ -432,6 +433,14 @@ async function judgeOpen(c: Clients, o: BotOpts, t: bigint, recent: Duel[], expo
     });
     if (!verdict.take) {
       log(tag, `declined #${d.id}${verdict.odds ? ` (would take it at ${verdict.odds})` : ""}: ${verdict.reason}`);
+      if (c.net.lobby) {
+        // Say so in public, with the price: a pass costs a few cents and goes on the record for everyone.
+        try {
+          await pass(c, d.id, verdict.reason, verdict.odds ?? null);
+        } catch (e) {
+          log(tag, `couldn't pass on #${d.id} in public: ${explain(e)}`);
+        }
+      }
       continue;
     }
     try {

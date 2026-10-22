@@ -8,6 +8,7 @@ import {CloserCall} from "../src/resolvers/CloserCall.sol";
 import {PriceLine} from "../src/resolvers/PriceLine.sol";
 import {UpDown} from "../src/resolvers/UpDown.sol";
 import {DuelBet} from "../src/resolvers/DuelBet.sol";
+import {Lobby} from "../src/Lobby.sol";
 import {MockFeed} from "../test/mocks/MockFeed.sol";
 
 /// @notice Deploys crows and the reference games with CREATE2, so addresses are the same on every chain.
@@ -28,6 +29,7 @@ contract Deploy is Script {
         address line = _deploy(type(PriceLine).creationCode);
         address upDown = _deploy(type(UpDown).creationCode);
         address duelBet = _deploy(abi.encodePacked(type(DuelBet).creationCode, abi.encode(crows)));
+        address lobby = _deploy(abi.encodePacked(type(Lobby).creationCode, abi.encode(crows)));
         address feed;
         if (mock) {
             (, int256 answer,,,) = MockFeed(0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70).latestRoundData();
@@ -50,6 +52,7 @@ contract Deploy is Script {
         vm.serializeAddress(o, "priceLine", line);
         vm.serializeAddress(o, "upDown", upDown);
         vm.serializeAddress(o, "duelBet", duelBet);
+        vm.serializeAddress(o, "lobby", lobby);
         if (mock) vm.serializeAddress(o, "mockFeed", feed);
         string memory json = vm.serializeAddress(o, "crows", crows);
         vm.writeJson(json, path);
@@ -58,6 +61,7 @@ contract Deploy is Script {
         console.log("priceLine", line);
         console.log("upDown", upDown);
         console.log("duelBet", duelBet);
+        console.log("lobby", lobby);
         if (mock) console.log("mockFeed", feed);
     }
 
