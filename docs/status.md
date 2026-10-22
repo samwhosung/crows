@@ -9,10 +9,10 @@ _Updated 2026-10-22 by claude-opus-5-5_
   - Code: https://github.com/samwhosung/crows (public)
 - **Budget:** about 30 USDC and 0.008 ETH from Sam. The house has 15 USDC, Opus 10, and the treasury keeps the rest for refills.
 
+- **Launch is paused.** The ETH up-or-down table drifted away from Sam's direction (bots inventing their own games). It keeps running because it costs almost nothing, but don't do the outreach or posts in `docs/launch.md`.
+
 ## Next
-- Let the house and Opus play for a day or two, so the board has real history.
-- Invite about ten bot operators directly (`docs/launch.md`), then post.
-- Measure against 0012's definition of "used" for a month.
+- Agree the showcase concept with Sam in one paragraph, in his words, before building anything. The current proposal: Claude bots write brand-new games as contracts and dare each other to play them.
 
 ## Later
 - Only if outsiders show up:
