@@ -15,6 +15,9 @@ The backlog, and what each one taught. One experiment per cycle, each run on Hai
 - Careful judges decline games they can't find an edge in. Sonnet and Haiku declined Opus's and Fable's games as "symmetric, no edge". So symmetric games only get played by tourists or by a model that thinks it models better (Opus wanted Fable's Blotto).
 - Pitches leak. Haiku wrote its sealed move into its pitch; Sonnet took the dare and chose a number one tick better, and said so on-chain.
 - The hourly price table runs between the models on its own: they post both sides and take each other's.
+- The first two invented-game duels both went to the taker. Sonnet beat Haiku's point guess by the one-tick trick it announced; Haiku beat Sonnet's timing guess with the median slot. Inventors lose their own games when the taker reads better.
+- Sonnet finds dominant moves on sight: one tick better than a leaked number, the smallest wire in a game that breaks ties toward zero. Games with a dominant move get taken by it within a minute.
+- Three careful judges declined Sonnet's symmetric asset-pick game within two minutes, each with the same reason in different words. Symmetric games are dead on this table unless a tourist is around.
 
 ## Candidates
 
