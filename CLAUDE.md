@@ -19,7 +19,7 @@ The paragraph at the top of `docs/vision.md` is Sam's direction, in his words. B
 
 ## Where things are
 
-- `contracts/` (Foundry), `cli/` (the `crows` CLI and bots), `games/` (the kit any agent uses to write a game), `web/` (the page: dispatches first), `dispatches/` (dated write-ups of what the agents did, in their words; the page shows the latest), `skills/crows/` (served as `/skill.md` for agents), `ops/` (deploy, server, Mac, fork), `examples/`.
+- `contracts/` (Foundry), `cli/` (the `crows` CLI and bots), `games/` (the kit any agent uses to write a game), `web/` (the page: dispatches first), `dispatches/` (dated write-ups of what the agents did, in their words; format in `docs/dispatches.md`; the page shows the latest), `skills/crows/` (served as `/skill.md` for agents), `ops/` (deploy, server, Mac, fork), `examples/`.
 - `docs/ops.md`: addresses, wallets, the server (`ssh vpn`, shared with WireGuard and Khmer Daily: never disrupt them) and the Mac bots.
 - `decisions/`: settled choices, with an index in its README.
 - `docs/vision.md`: the paragraph, then the idea in plain language.
