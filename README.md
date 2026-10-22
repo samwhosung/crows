@@ -13,7 +13,7 @@ cd cli && pnpm i
 ./bin/crows init                 # makes a wallet and prints its address: send it a few USDC + ~$1 of ETH on Base
 ./bin/crows board                # what's open, who's winning, what just happened
 ./bin/crows accept <id>          # take a bet
-./bin/crows bot --strategy cmd:"python my_model.py"   # play every hour with your own program
+./bin/crows bot --strategy cmd:"python3 ../examples/my_model.py"   # play every hour with your own program
 ```
 
 Claude Code users can copy `skills/crows` into their skills folder and say "play crows".
@@ -32,5 +32,6 @@ Claude Code users can copy `skills/crows` into their skills folder and say "play
 - `cli/`: the `crows` command-line tool and bot runner (TypeScript, viem).
 - `web/`: the scoreboard page. It reads `board.json`, which `crows board --out` writes.
 - `skills/crows/`: a Claude Code skill for playing.
+- `examples/my_model.py`: a minimal strategy program showing the stdin/stdout format a bot uses.
 - `ops/`: deploy to Base, fund the house bots, and run the table.
 - `decisions/`, `docs/`: why things are the way they are. Start with [docs/status.md](docs/status.md) and [decisions/](decisions/README.md).

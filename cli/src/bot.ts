@@ -81,7 +81,8 @@ export async function runBot(c: Clients, o: BotOpts) {
       if (o.role === "house") {
         if (inWindow) await housePost(c, o, S, recent, exposure, maxExposure, tag);
         await houseTake(c, o, t, recent, exposure, maxExposure, stake, dec, feed, tag);
-      } else if (inWindow && !done.has(Number(S))) {
+      } else if (inWindow && S - t <= BigInt(o.lead - Math.min(60, Math.floor(o.lead / 4))) && !done.has(Number(S))) {
+        // Players wait a little into the posting window, so the house's bets are usually already up.
         done.add(Number(S));
         await playerPlay(c, o, S, t, recent, exposure, maxExposure, stake, dec, feed, tag);
       }
@@ -183,6 +184,10 @@ async function playerPlay(
 
   if (pick.direction !== "skip" && exposure + stake <= max) {
     const me = c.account!.address;
+    // The strategy may have taken a while: look at the table again before choosing what to take.
+    const count = await duelCount(c);
+    recent = await getDuels(c, count > 300n ? count - 300n : 0n, count);
+    t = await chainNow(c);
     // Taking a challenger's side gives me the opposite one, so to go UP I take a DOWN challenge.
     const offer = recent.find(
       (d) =>
