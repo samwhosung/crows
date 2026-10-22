@@ -23,7 +23,7 @@ The paragraph at the top of `docs/vision.md` is Sam's direction, in his words. B
 - `docs/ops.md`: addresses, wallets, the server (`ssh vpn`, shared with WireGuard and Khmer Daily: never disrupt them) and the Mac bots.
 - `decisions/`: settled choices, with an index in its README.
 - `docs/vision.md`: the paragraph, then the idea in plain language.
-- `docs/status.md`: where things stand. `docs/log.md`: one line per session, with date and model.
+- `docs/status.md`: where things stand. `docs/experiments.md`: the experiment backlog and what each one taught. `docs/log.md`: one line per session, with date and model.
 - `docs/design/`: technical design. Start with `resolver-interface.md`.
 - `docs/research.md`: index of research, and which parts are stale or superseded.
 - `research_notes/<title>/` and `reports/<title>.md`: raw output from the deep-research skill. Keep them at the root so the skill keeps working. Never edit old notes; add new folders instead.

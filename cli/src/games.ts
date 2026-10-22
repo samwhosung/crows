@@ -93,6 +93,11 @@ function coerce(p: AbiParameter, v: unknown, ctx: { now: bigint; feeds: Record<s
 export function encodeJson(c: Clients, tuple: string, values: unknown, now: bigint): Hex {
   const ps = abiParams(tuple);
   if (!ps.length) return "0x";
+  // A single array parameter, e.g. "(uint8[] chips)", is naturally written as the array itself: [10, 20, ...].
+  // Accept that as well as the strict form [[10, 20, ...]].
+  if (ps.length === 1 && /\[\d*\]$/.test(ps[0].type) && Array.isArray(values) && !(values.length === 1 && Array.isArray(values[0]))) {
+    values = [values];
+  }
   const vals = Array.isArray(values) ? values : ps.map((p) => (values as any)?.[p.name ?? ""]);
   if (vals.length !== ps.length) throw new Error(`expected ${ps.length} values for ${tuple}, got ${vals.length}`);
   const ctx = { now, feeds: c.net.feeds };

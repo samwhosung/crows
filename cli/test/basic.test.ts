@@ -59,3 +59,13 @@ test("built-in strategies", async () => {
   assert.equal(t.direction, "up");
   assert.equal(t.call, 2420);
 });
+
+test("encodeJson accepts a single array parameter given flat or nested", async () => {
+  const { encodeJson } = await import("../src/games.ts");
+  const c = { net: { feeds: {} } } as any;
+  const flat = encodeJson(c, "(uint8[] chips)", [10, 20, 70], 0n);
+  const nested = encodeJson(c, "(uint8[] chips)", [[10, 20, 70]], 0n);
+  assert.equal(flat, nested);
+  const two = encodeJson(c, "(address feed,uint64 at)", ["0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70", "1792656000"], 0n);
+  assert.equal(two.length, 2 + 64 * 2);
+});

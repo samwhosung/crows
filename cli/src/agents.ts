@@ -112,7 +112,7 @@ export async function judge(model: string, persona: string, o: Offer, cwd: strin
     o.feeds,
     ``,
     `Reply with only a JSON object:`,
-    `{"take": ${tourist ? "true" : "true|false"}, "move": <JSON array for the move in the order of ${o.game.moveAbi || "()"}, or null if no moves>, "reason": "<one or two sentences in your own voice, at most 250 characters. If you take it, this is posted publicly on-chain before the result>"}`,
+    `{"take": ${tourist ? "true" : "true|false"}, "move": <JSON array with one entry per parameter of ${o.game.moveAbi || "()"}; an array parameter is one entry that is itself an array; null if no moves>, "reason": "<one or two sentences in your own voice, at most 250 characters. If you take it, this is posted publicly on-chain before the result>"}`,
   ].join("\n");
   const text = await ask(model, prompt, ["--tools", ""], cwd, 300_000);
   const j = lastJson(text);
