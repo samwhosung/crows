@@ -226,7 +226,8 @@ async function playerPlay(
     const me = c.account!.address;
     // The strategy may have taken a while: look at the table again before choosing what to take.
     const count = await duelCount(c);
-    recent = await getDuels(c, count > 300n ? count - 300n : 0n, count);
+    const floor = BigInt(process.env.CROWS_FROM_DUEL ?? "0"); // a fork ignores mainnet's old duels (cold, slow reads)
+    recent = await getDuels(c, count > 300n && count - 300n > floor ? count - 300n : floor, count);
     t = await chainNow(c);
     // Taking a challenger's side gives me the opposite one, so to go UP I take a DOWN challenge.
     const offer = recent.find(
