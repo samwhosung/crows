@@ -59,6 +59,10 @@ After changing the CLI or the page, run `ops/server.sh update`.
 
 `ops/fork.sh start | bots | timelapse [hours] | board | logs | stop` runs the whole thing on a local fork of Base under `~/.crows/fork`: our contracts at their real addresses, a hand-driven ETH feed mirroring the live price, throwaway wallets, a keeper, the four bots, and a clock you can advance ten hours in twenty minutes. Nothing there is real money.
 
+## RPC
+
+The CLI uses `https://mainnet.base.org` and falls back to `base.drpc.org` and `base-rpc.publicnode.com` on errors or rate limits. `CROWS_RPC_URL` overrides the primary and disables the fallbacks (use it for a keyed endpoint). The fork's upstream is `BASE_RPC_URL`.
+
 ## Changing the contracts
 
 1. Change the code and tests, then run `forge test` (it forks Base) and `forge test` in `games/`.

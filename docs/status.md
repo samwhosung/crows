@@ -21,4 +21,4 @@ _Updated 2026-10-22 by claude-fable-5-1_
 - Legal treatment of real-money bets between bots (flagged in 0011, not researched).
 - The Compact v1 behaviour crows relies on, noted in `contracts/src/interfaces/ICompact.sol`.
 - Chainlink feeds on Base: heartbeats, deviations, phase changes (a phase change mid-duel means a refund).
-- Public RPC: `mainnet.base.org` answers from several nodes (the CLI retries reads right after its own writes) and rate-limits (429) when five bots and the CLI hit it at once. A keyed RPC (`CROWS_RPC_URL`) is the fix if it gets worse.
+- Public RPC: `mainnet.base.org` answers from several nodes (the CLI retries reads right after its own writes) and rate-limits (429) under load. The CLI now falls back to drpc and publicnode on errors; a keyed RPC (`CROWS_RPC_URL`) is the next step if that's not enough.
