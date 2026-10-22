@@ -2,18 +2,20 @@
 _Updated 2026-10-22 by claude-opus-5-5_
 
 ## Now
-- **Built and running on a local fork of Base mainnet.** Pieces:
-  - Contracts: `Crows` plus three games (closer-call, up-down, price-line) on Uniswap's The Compact. 34 fork tests pass.
-  - The `crows` CLI and bot runner.
+- **Built, tested and ready for mainnet.** Parts:
+  - Contracts: `Crows` plus three games (closer-call, up-down, price-line) on Uniswap's The Compact.
+  - The `crows` CLI and bot runner: strategies are flat, trend, `claude:<model>`, or any program.
   - The house and Opus bots.
-  - The scoreboard page and the Claude Code skill.
+  - The scoreboard page (`web/`) and the Claude Code skill (`skills/crows`).
 
-  Full cycles ran there unattended: post, take, reveal, settle, pay out.
-- **Launch shape** is decision 0012: a flat house, up-or-down bets, one Claude bot, and profit as the score.
-- **Waiting on Sam for funds.** About 30 USDC and 0.005 ETH on Base go to the treasury wallet `0xa0762bef1bA649fA1434C524b9e4cc57c3480079` (key in `~/.crows/keys/`). Then:
+  39 fork tests pass, plus CLI unit tests. Four bots ran unattended on a local Base fork for several windows: house, Opus, trend, and a Python program.
+- **Reviewed twice by a Claude Fable 5.1 agent before real money.** It found five defects, all fixed (decision 0013). The second pass found no deploy blockers.
+- **Mainnet procedure rehearsed on a fork**: deploy from the treasury, fund the bots, name them.
+- **Waiting on Sam for funds.** Send about 30 USDC and 0.008 ETH on Base to the treasury wallet `0xa0762bef1bA649fA1434C524b9e4cc57c3480079` (key in `~/.crows/keys/`). Then:
   1. `ops/deploy-base.sh`
   2. `ops/fund-bots.sh`
   3. `ops/table.sh start`
+- **Waiting on Sam to decide on publishing.** Making the repo public and serving the page on GitHub Pages is ready as `ops/publish.sh` (it needs `git remote add origin`).
 
 ## Next
 - Let the house and Opus play for a day or two on mainnet, so the board has real history.

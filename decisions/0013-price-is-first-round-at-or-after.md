@@ -28,3 +28,7 @@ The same review also led to these changes:
 
 - Settlement can happen as soon as the first round after T is posted, usually within minutes. There's no need to wait for the round after it.
 - Up-down bets close a minute before their window starts.
+- Known residuals, accepted for now (from the review's second pass):
+  - If Chainlink upgrades the feed between T and settlement, the new aggregator may already have rounds spanning T, so the result depends on whether settlement happens before or after the switch. Nobody controls that timing. If it ever matters, pin the phase in the duel's params at creation.
+  - Prices must land within an hour of T. Feeds that only update every 24 hours will mostly draw. ETH/USD and BTC/USD on Base update at least every ~20 minutes.
+

@@ -1,6 +1,7 @@
 #!/bin/sh
 # Deploy crows to Base mainnet from the treasury wallet, verify the source on Sourcify, refresh the CLI.
 # Usage: ops/deploy-base.sh            (needs a little ETH in ~/.crows/keys/treasury.key's address)
+# Rehearse on a fork: BASE_RPC_URL=http://127.0.0.1:8546 SKIP_VERIFY=1 ops/deploy-base.sh
 set -eu
 ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
 RPC="${BASE_RPC_URL:-https://mainnet.base.org}"
@@ -9,6 +10,7 @@ cd "$ROOT/contracts"
 forge build
 NETWORK=base forge script script/Deploy.s.sol --rpc-url "$RPC" --broadcast --slow \
   --private-key "$(cat "$HOME/.crows/keys/treasury.key")"
+[ "${SKIP_VERIFY:-0}" = 1 ] && { cd "$ROOT/cli" && node scripts/abi.mjs; echo "deployed (unverified): $(cat "$ROOT/contracts/deployments/base.json")"; exit 0; }
 for pair in crows:Crows closerCall:CloserCall priceLine:PriceLine upDown:UpDown; do
   key="${pair%%:*}"; name="${pair##*:}"
   addr=$(python3 -c "import json;print(json.load(open('deployments/base.json'))['$key'])")

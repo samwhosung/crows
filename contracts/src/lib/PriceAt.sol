@@ -40,12 +40,6 @@ library PriceAt {
         return (true, a1);
     }
 
-    /// @notice Same proof, returning the round's update time too (for games comparing two rounds).
-    function updatedAt(address feed, uint80 roundId) internal view returns (uint256) {
-        (,, uint256 u) = _round(feed, roundId);
-        return u;
-    }
-
     function isFeed(address feed) internal view returns (bool) {
         if (feed.code.length == 0) return false;
         try IAggregatorV3(feed).latestRoundData() returns (uint80, int256 answer, uint256, uint256 u, uint80) {
