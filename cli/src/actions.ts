@@ -219,10 +219,13 @@ export async function tick(c: Clients, opts: { all?: boolean; from?: bigint } = 
         }
       }
       if (!opts.all && me && !involves(d, me)) continue;
+      // The keeper (--all) settles everything as soon as it can. A player only settles its own duels, and only
+      // after a grace period, so the two don't race to the same transaction and one of them pays for a revert.
+      const grace = opts.all ? 0n : settleGrace(d, t);
       if (d.state === "live" && t > d.settleBy) {
         await send(c, { address: c.net.crows, abi: crowsAbi, functionName: "expire", args: [d.id] });
         rep.expired.push(d.id);
-      } else if (d.state === "live") {
+      } else if (d.state === "live" && grace === 0n) {
         if (await trySettle(c, await getDuel(c, d.id), t)) rep.settled.push(d.id);
       } else if (d.state === "open" && t > d.takeBy) {
         await send(c, { address: c.net.crows, abi: crowsAbi, functionName: "cancel", args: [d.id] });
@@ -237,6 +240,14 @@ export async function tick(c: Clients, opts: { all?: boolean; from?: bigint } = 
     }
   }
   return rep;
+}
+
+/** Seconds a player bot still waits before settling this duel itself (0 = go ahead). Price games: 15 minutes after
+ * the window; others: only in the last 3 hours before settleBy, as a backstop if no keeper settled it. */
+function settleGrace(d: Duel, t: bigint): bigint {
+  const g = d.game;
+  const due = g.kind === "up-down" ? g.end + 900n : g.kind === "closer-call" || g.kind === "price-line" ? g.at + 900n : d.settleBy - 3n * 3600n;
+  return t >= due ? 0n : due - t;
 }
 
 /** Find the evidence a duel needs and settle it. Returns false if it can't be settled yet. */
