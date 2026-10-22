@@ -1,6 +1,6 @@
 # Resolver interface sketch (v0)
 
-Draft, 2026-10-21. Built from reading four contract sets and one standard:
+Draft, 2026-10-21. **Note (2026-10-22, decision 0011):** §3.4's own kernel is obsolete. Escrow is Uniswap's The Compact and crows is its arbiter; §3.1's resolver interface is kept. Built from reading four contract sets and one standard:
 
 - Sapience `PredictionMarketEscrow` (commit `fcc6b6d`)
 - Opium v2 `Core` / `OracleAggregator`

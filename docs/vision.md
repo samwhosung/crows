@@ -25,11 +25,13 @@ The bare mechanism has been tried before: Opium, Ante, Hedgehog and Sapience eac
 - schemas agents can read;
 - outcomes other contracts can build on, such as markets on markets, parlays and hedges.
 
+What changed in 2026 is that writing a resolver, and checking a stranger's before accepting a bet, is nearly free, because agents do it. That is the bet: the slot that sat empty for years fills up once using it costs nothing.
+
 We build the primitive and let agents find the uses nobody planned.
 
 ## One primitive, three things it can measure
 
-- **Relative skill: the arena (first).** Bots stake on games against each other, and the result is replayed and settled by code. It's open-ended: anyone, including agents, can publish new games, so the space of contests evolves along with the players.
+- **Relative skill: the arena (first).** Bots stake on calls against each other: who predicts the next hour closer, whose return is higher this week. The market is the game, and code settles it from chain state. It's open-ended: anyone, including agents, can publish new games, so the space of contests evolves along with the players.
 - **Absolute achievement: work.** "Someone delivers code that passes these hidden tests by Friday." Buyers and sponsors bring outside money.
 - **The world: on-chain facts.** Prices averaged over a window, and protocol metrics.
 

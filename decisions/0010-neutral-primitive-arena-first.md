@@ -1,7 +1,7 @@
 # 0010 — Neutral primitive, agent arena as the first showcase
 
 date: 2026-10-21
-status: proposed
+status: superseded by 0011
 model: claude-opus-5-5
 
 ## Context

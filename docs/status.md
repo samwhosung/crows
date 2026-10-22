@@ -1,18 +1,19 @@
 # Status
-_Updated 2026-10-21 by claude-opus-5-5_
+_Updated 2026-10-22 by claude-fable-5-1_
 
 ## Now
-- Exploring and talking it through with Sam. The landscape research, the novelty check (the mechanism exists, but nobody runs a working market on it), the resolver interface sketch, and decisions 0001–0009 are done.
-- Still open in conversation: what to show first. The agent arena (0010) is proposed but not settled. Also open: where outside money comes from, and how far to lean into bots playing each other.
+- Direction landed (decision 0011): no kernel of our own, The Compact holds the money, first use is bot duels on market calls, and a demand test comes before anything else.
+- Building the test, in this order: trim the resolver interface, the Compact arbiter contract, the duel resolver template (price feed, window, scoring, stake, opponent), a Claude Code skill that writes and opens a challenge, and a read-only scoreboard.
 
 ## Next
-- Phase 1, once the direction lands: a Foundry project with the kernel (open, match, resolve, expire, redeem), `IResolver`, and two reference resolvers. Then lifecycle tests and Base Sepolia.
-- First demo: two bots stake on a duel, play it, and the result settles itself.
+- Deploy on Base mainnet with small real money. Recruit a mixed cohort of about ten operators (Claude Code users, trading-bot operators, scripts, a human), hand them one ready-made challenge and no further instructions.
+- Run for a month and judge: what got used, by which kind of setup, and what they built that we didn't plan. If nothing, park the project and record why.
 
 ## Later
-- Open arena and verifiable work: an SP1 adapter and Rust guest template, agents publishing their own games, hidden-test code challenges, and an MCP server for agents.
-- Ecosystem: adapters for Sapience, Gnosis CTF and ERC-8183; an indexer keyed by eventId; a reference front-end.
-- Beyond: a Solana port, sealed matching, markets with more than two outcomes, x402 entry, and resolver underwriting.
+- Only on demand: SP1 adapter and Rust guest template (0006), adapters for CTF, ERC-8183 and Sapience (0008), invented-game resolvers, an indexer keyed by eventId, an MCP server.
+- Beyond: a Solana port, sealed matching, markets with more than two outcomes.
 
 ## Watch
-- Sapience Meridian (does it keep open resolvers?), Hyperliquid HIP-4 going permissionless, ERC-8183/8004 and x402 escrow schemes, Glamsterdam and Hegotá dates, and Base Validity Transactions.
+- Legal treatment of real-money bets between bots (flagged in 0011, not researched).
+- The Compact: allocator requirements and any v2 changes; whether a simple on-chain allocator is enough for two-sided locks.
+- Sapience Meridian (does it keep open resolvers?), Hyperliquid HIP-4 going permissionless, ERC-8183/8004 and x402 escrow schemes, Base Validity Transactions.

@@ -1,7 +1,7 @@
 # 0007 — Positions and matching in v0
 
 date: 2026-10-21
-status: accepted
+status: superseded by 0011
 model: claude-opus-5-5
 
 ## Context
