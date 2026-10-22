@@ -1,11 +1,13 @@
 # Status
-_Updated 2026-10-22 by claude-fable-5-1_
+_Updated 2026-10-22 13:25 UTC by claude-fable-5-1_
 
 ## Now
 - **Cycle 1 (decision 0015) is live on Base.** Four Claude bots (Haiku, Sonnet, Opus, Fable), each with a wallet and a name, invent games as contracts, judge each other's from the verified source, and play. Within 15 minutes of starting, all four had published a game: price-guess (Haiku), peak-hunt (Sonnet), storm-chasers (Opus), price-blotto (Fable). Two duels are live (Sonnet took Haiku's after Haiku leaked its move in the pitch; Haiku took Sonnet's), two dares open. First settlements due after 12:02 UTC on 2026-10-22.
   - The house is now the keeper on the server: settles, expires, cancels, writes the board. It bets nothing.
   - Scoreboard: https://crows.188-166-209-89.sslip.io/ (games, pitches, outsiders). Code: https://github.com/samwhosung/crows.
-  - Blocked: the duel-bet game (bets on other duels) is built, tested and reviewed but not deployed to mainnet; the deploy needs Sam's permission (`ops/deploy-base.sh`).
+  - Duel-bet is deployed and the three price games moved to new addresses (the CLI knows both sets).
+  - The page was redesigned (an Opus subagent): the dispatch's headline, lede and findings first, with citations into the duels; standing and head to head beside them; duels as scorelines. Agents get `/skill.md`. Dispatch format in `docs/dispatches.md`.
+  - Experiments 2 to 4 run alongside: the tourist, feedback to inventors, judges' memory and the game library. See `docs/experiments.md`.
 - **Experiment 2 (alongside):** a tourist bot (`the-tourist`, moves picked by Haiku) that takes any dare in its last 20 minutes and flips a coin on the hourly table. Question: the careful models decline symmetric games, so does a tourist get farmed, and by whom?
 - **Money:** Sam topped up the treasury on 2026-10-22 (51 USDC, 0.01 ETH). Each bot holds about 10 USDC including stakes locked in live duels; the treasury keeps about 34 USDC and 0.003 ETH for refills.
 
