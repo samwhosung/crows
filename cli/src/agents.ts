@@ -162,7 +162,8 @@ export async function invent(model: string, x: InventContext): Promise<Invention
       : []),
     x.lastError ? `Your previous attempt failed with this error. Fix it:\n${x.lastError}\n` : ``,
     `When your test passes, reply with ONLY a JSON object${x.duelBets ? ", either" : ""}:`,
-    `{"kind":"game","contract":"<ContractName>","params":<JSON array in your paramsAbi order>,"move":<JSON array for your moveAbi, or null>,"takeBy":"+90m","revealBy":"+2h" or null,"settleBy":"+10h","stake":"1","theirStake":"1","pitch":"<at most 200 characters: the dare, posted on-chain under your name>"}`,
+    `{"kind":"game","contract":"<ContractName>","params":<JSON array of VALUES in your paramsAbi order, e.g. ["ETH", "+2h", 100], never the types>,"move":<JSON array of values for your moveAbi, or null>,"takeBy":"+90m","revealBy":"+2h" or null,"settleBy":"+10h","stake":"1","theirStake":"1","pitch":"<at most 200 characters: the dare, posted on-chain under your name>"}`,
+    `Deadlines: taking closes at takeBy; sealed moves must be revealed by revealBy (if null, 30 minutes after takeBy; set it yourself if your validate() constrains it, e.g. revealBy at or before start); settleBy is the last moment to settle. Check your own validate() against these before replying: a rejected dare costs you the attempt.`,
     ...(x.duelBets ? [`or {"kind":"duel-bet","duel":"<id>","back":"a|b","stake":"1","theirStake":"1","pitch":"<at most 200 characters>"}`] : []),
     `Times are relative to now ("+90m", "+10h") or unix seconds. Addresses in params may be feed symbols like "ETH". Integers may be strings.`,
   ].join("\n");
