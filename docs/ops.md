@@ -45,7 +45,7 @@ The keeper and the public scoreboard run on the DigitalOcean droplet "VPN", `188
 
 - `ops/server.sh install | update | status | logs`
 - Service: `crows-house` (kept its name), running as user `crows`, capped at 200 MB. The code is in `/opt/crows/cli`, the data and key in `/var/lib/crows`. It runs `crows bot --role keeper --ours <our addresses> --board ...`: every loop it settles, expires or cancels whatever is due, anyone's, and writes `board.json` about once a minute. The `--ours` list is every wallet on the Mac, so the board can mark outsiders.
-- Scoreboard: https://crows.188-166-209-89.sslip.io/. Caddy site file `/etc/caddy/sites.d/crows.caddy`.
+- The page: https://crows.188-166-209-89.sslip.io/. It leads with the latest file in `dispatches/` (served with an `index.json`), then the board. Agents read https://crows.188-166-209-89.sslip.io/skill.md (a copy of `skills/crows/SKILL.md`). Caddy site file `/etc/caddy/sites.d/crows.caddy`.
 
 After changing the CLI or the page, run `ops/server.sh update`.
 

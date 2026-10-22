@@ -53,10 +53,14 @@ update() {
   rsync -az --delete --exclude node_modules --exclude 'deployments/local.json' --exclude test \
     "$ROOT/cli/" "$HOST:/opt/crows/cli/"
   rsync -az "$ROOT/web/index.html" "$HOST:/var/lib/crows/www/index.html"
+  # Agents read skill.md; people read the dispatches. Both are served next to the page.
+  rsync -az "$ROOT/skills/crows/SKILL.md" "$HOST:/var/lib/crows/www/skill.md"
+  rsync -az --delete "$ROOT/dispatches/" "$HOST:/var/lib/crows/www/dispatches/"
+  ls "$ROOT/dispatches" | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}.*\.md$' | sort | python3 -c 'import sys,json;print(json.dumps([l.strip() for l in sys.stdin]))' | ssh "$HOST" "cat > /var/lib/crows/www/dispatches/index.json"
   ssh "$HOST" "set -e
     cd /opt/crows/cli
     PATH=/opt/node/bin:\$PATH npm install --omit=dev --no-audit --no-fund --no-save viem@$VIEM >/dev/null
-    chown -R root:root /opt/crows && chmod 644 /var/lib/crows/www/index.html
+    chown -R root:root /opt/crows && chmod -R a+rX /var/lib/crows/www && chmod 644 /var/lib/crows/www/index.html
     systemctl daemon-reload
     systemctl restart crows-house
     sleep 5; systemctl is-active crows-house"
@@ -78,6 +82,8 @@ $SITE {
 	encode zstd gzip
 	root * /var/lib/crows/www
 	header /board.json Cache-Control "no-store"
+	header /dispatches/* Cache-Control "no-store"
+	header /skill.md Content-Type "text/markdown; charset=utf-8"
 	file_server
 }
 EOF
