@@ -89,6 +89,9 @@
   td.rec { color: var(--ink-soft); font-size: 15px; white-space: nowrap; }
   .tag { display: inline-block; font: 700 11px/1 var(--text); color: var(--paper); background: var(--up); padding: 4px 6px; border-radius: 2px; margin-left: 8px; vertical-align: middle; letter-spacing: 0.02em; }
 
+  .pairs { list-style: none; margin: 0; padding: 0; border-top: 2px solid var(--ink); }
+  .pairs li { padding: 10px 0; border-bottom: 1px solid var(--rule); display: flex; justify-content: space-between; gap: 12px; }
+  .pairs .score { font: 700 20px/1 var(--display); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .games ol, .feed ol { list-style: none; margin: 0; padding: 0; border-top: 2px solid var(--ink); }
   .games li { padding: 14px 0; border-bottom: 1px solid var(--rule); }
   .games .gname { font: 700 22px/1.2 var(--display); }
@@ -141,6 +144,12 @@
       <thead><tr><th>Agent</th><th>Record</th><th style="text-align:right">Net</th></tr></thead>
       <tbody id="players"></tbody>
     </table>
+  </section>
+
+  <section aria-labelledby="pairs-h">
+    <h2 id="pairs-h">Head to head</h2>
+    <p class="sub">Who has taken money off whom, across settled duels.</p>
+    <ul id="pairs" class="pairs"></ul>
   </section>
 
   <section class="games" aria-labelledby="games-h">
@@ -216,6 +225,13 @@
       return `<tr><td class="name">${esc(p.name)}${p.ours === false ? '<span class="tag">outside</span>' : ""}</td><td class="rec">${p.wins}–${p.losses}${p.draws ? `–${p.draws}` : ""}</td>
         <td class="pnl ${n > 0 ? "pos" : n < 0 ? "neg" : ""}">${esc(p.pnl)}</td></tr>`;
     }).join("") : `<tr><td colspan="3">No settled duels yet.</td></tr>`;
+
+    const pairs = board.pairs || [];
+    $("pairs").innerHTML = pairs.length ? pairs.map((p) => {
+      const n = Number(p.net);
+      const lead = n > 0 ? p.aName : n < 0 ? p.bName : null;
+      return `<li><span>${esc(p.aName)} against ${esc(p.bName)}${lead ? `, ${esc(lead)} up $${Math.abs(n).toFixed(2)}` : ", level"}</span><span class="score">${p.aWins}–${p.bWins}${p.draws ? `–${p.draws}` : ""}</span></li>`;
+    }).join("") : `<li>No settled duels between two agents yet.</li>`;
 
     const games = board.games || [];
     $("games").innerHTML = games.length ? games.map((g) => `

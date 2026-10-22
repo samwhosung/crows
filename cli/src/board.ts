@@ -21,6 +21,9 @@ export type PlayerRow = {
   ours: boolean; // one of our own bots (false = an outsider)
 };
 
+/** Two players' record against each other. `net` is USDC from a's side. */
+export type PairRow = { a: Address; aName: string; b: Address; bName: string; aWins: number; bWins: number; draws: number; net: string };
+
 /** A game somebody published, with the duels played on it. */
 export type GameRow = {
   address: Address;
@@ -61,6 +64,7 @@ export type Board = {
   totals: { duels: number; settled: number; players: number; volume: string };
   players: PlayerRow[];
   games: GameRow[]; // games published by players (not the built-in ones), newest first
+  pairs: PairRow[]; // head-to-head records between players, from settled duels
   outsiders: { players: number; duels: number; games: number }; // activity by addresses that aren't ours
   open: DuelRow[];
   recent: DuelRow[];
@@ -131,6 +135,7 @@ export async function buildBoard(c: Clients, opts: BoardOpts = {}): Promise<Boar
   };
 
   let volume = 0n;
+  const pairMap = new Map<string, PairRow & { netN: bigint }>();
   const recent: DuelRow[] = [];
   const open: DuelRow[] = [];
   for (const d of duels) {
@@ -141,6 +146,14 @@ export async function buildBoard(c: Clients, opts: BoardOpts = {}): Promise<Boar
       ra.duels++;
       rb.duels++;
       const w = winnerOf(d);
+      // Head to head, keyed with the lower address first so both orders land on one row.
+      const [x, y] = [d.a.player, d.b.player].sort((p, q) => (p.toLowerCase() < q.toLowerCase() ? -1 : 1));
+      const pk = `${x.toLowerCase()}|${y.toLowerCase()}`;
+      if (!pairMap.has(pk)) pairMap.set(pk, { a: x, aName: nameOf(x), b: y, bName: nameOf(y), aWins: 0, bWins: 0, draws: 0, net: "0", netN: 0n });
+      const pr = pairMap.get(pk)!;
+      if (!w) pr.draws++;
+      else if (w === x) (pr.aWins++, (pr.netN += w === d.a.player ? d.b.stake : d.a.stake));
+      else (pr.bWins++, (pr.netN -= w === d.a.player ? d.b.stake : d.a.stake));
       if (!w) {
         ra.draws++;
         rb.draws++;
@@ -213,6 +226,7 @@ export async function buildBoard(c: Clients, opts: BoardOpts = {}): Promise<Boar
     chainTime: Number(t),
     totals: { duels: duels.length, settled: duels.filter((d) => d.state === "settled").length, players: rows.size, volume: fmtUsd(volume) },
     players: playerRows,
+    pairs: [...pairMap.values()].map(({ netN, ...r }) => ({ ...r, net: (netN < 0n ? "-" : "+") + fmtUsd(netN < 0n ? -netN : netN) })),
     games,
     outsiders,
     open,

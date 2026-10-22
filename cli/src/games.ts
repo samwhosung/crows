@@ -198,10 +198,20 @@ export async function deployGame(c: Clients, name: string, dir = gamesDir()): Pr
   const b = forge(["build"], dir);
   if (!b.ok) throw new Error(`forge build failed:\n${b.out.slice(-1500)}`);
   const art = artifactOf(dir, name);
-  const { address, tx } = await deployBytecode(c, art.bytecode);
+  // The same bytecode deployed before (a retry after a rejected dare, say) is reused instead of paying for a
+  // second copy. Any contract can be a game, so the address doesn't have to be fresh.
+  const codeHash = keccak256(art.bytecode);
+  const prior = Object.entries(localRegistryRead(c)).find(([, e]) => e.codeHash === codeHash);
+  let address: Address;
+  let tx: Hex = "0x";
+  if (prior && (await c.pub.getCode({ address: prior[0] as Address }))) {
+    address = getAddress(prior[0]);
+  } else {
+    ({ address, tx } = await deployBytecode(c, art.bytecode));
+  }
   let verified = false;
   let verifyLog: string | undefined;
-  if (!c.net.dev) {
+  if (!c.net.dev && !(prior && (await sourceOf(c, address)).verified)) {
     const v = forge(
       ["verify-contract", address, `${art.source}:${name}`, "--chain-id", String(c.net.chainId), "--verifier", "sourcify", "--watch"],
       dir,
@@ -210,7 +220,7 @@ export async function deployGame(c: Clients, name: string, dir = gamesDir()): Pr
     verified = v.ok && !/fail|error/i.test(v.out.split("\n").slice(-5).join(" "));
     verifyLog = v.out.slice(-400);
   }
-  registerLocal(c, address, join(dir, art.source));
+  registerLocal(c, address, join(dir, art.source), codeHash);
   const info = await describeGame(c, address);
   return { address, tx, source: art.source, verified, verifyLog, info };
 }
@@ -222,11 +232,17 @@ function localRegistry(c: Clients) {
   return join(dir, "games.json");
 }
 
-function registerLocal(c: Clients, address: Address, sourcePath: string) {
+type RegistryEntry = { source: string; at: number; codeHash?: Hex };
+
+function localRegistryRead(c: Clients): Record<string, RegistryEntry> {
   const p = localRegistry(c);
-  const reg = existsSync(p) ? JSON.parse(readFileSync(p, "utf8")) : {};
-  reg[address.toLowerCase()] = { source: sourcePath, at: Date.now() };
-  writeFileSync(p, JSON.stringify(reg, null, 2));
+  return existsSync(p) ? JSON.parse(readFileSync(p, "utf8")) : {};
+}
+
+function registerLocal(c: Clients, address: Address, sourcePath: string, codeHash: Hex) {
+  const reg = localRegistryRead(c);
+  reg[address.toLowerCase()] = { source: sourcePath, at: Date.now(), codeHash };
+  writeFileSync(localRegistry(c), JSON.stringify(reg, null, 2));
 }
 
 /** The game's published source files: from Sourcify on real networks, from this machine's registry on a fork. */
