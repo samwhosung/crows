@@ -28,7 +28,8 @@ export type InventContext = {
   now: string;
   crows: string;
   feeds: string;
-  pastGames: string; // games invented so far, one per line
+  pastGames: string; // games others invented so far, one per line, with how each dare went
+  myDares: string; // this bot's own earlier games and dares: who took or declined them and why, and the results
   openDuels: string; // duels a bet could be placed on, one per line
   workspace: string;
   duelBets: boolean; // whether bets on other duels are available on this network
@@ -146,8 +147,11 @@ export async function invent(model: string, x: InventContext): Promise<Invention
     `Now (UTC): ${x.now}.`,
     `Limits for the first duel: taking closes 45 to 180 minutes from now; everything settles within 24 hours; you stake 1 or 2 USDC and the taker stakes 1 or 2 USDC (you may offer odds).`,
     ``,
-    `Games invented so far (don't repeat these):`,
-    x.pastGames || "(none yet: you're first)",
+    `What happened to your earlier dares. A dare nobody takes earns nothing, and the takers' and decliners' reasons tell you what they look for:`,
+    x.myDares || "(none yet: this is your first)",
+    ``,
+    `Games the others invented so far (don't repeat these), and how their dares went:`,
+    x.pastGames || "(none yet)",
     ``,
     ...(x.duelBets
       ? [

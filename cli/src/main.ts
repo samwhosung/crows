@@ -6,7 +6,7 @@ import { loadNetwork, crowsHome } from "./config.ts";
 import { join } from "node:path";
 import { clients, explain, send, type Clients } from "./chain.ts";
 import { newWallet, loadWallet, listWallets } from "./wallet.ts";
-import { getDuel, getDuels, isOpenFor, involves, decodeCall, fmtUsd, fmtPrice } from "./duels.ts";
+import { getDuel, getDuels, duelCount, isOpenFor, involves, decodeCall, fmtUsd, fmtPrice } from "./duels.ts";
 import { challenge, challengeGame, accept, tick, settleOne, cancel, setName, note, parseTime, chainNow, type GameName } from "./actions.ts";
 import { latestRound, roundsSince, feedDecimals } from "./rounds.ts";
 import { buildBoard } from "./board.ts";
@@ -25,6 +25,7 @@ Look
   crows list [--open|--mine|--live|--all]
   crows show <id>
   crows board [--out board.json]    leaderboard, open challenges, recent duels
+  crows dispatch [--from <id>]      raw material for a write-up: duels, notes, our bots' declines, results
 
 Play
   crows accept <id> [--call <price>]  take an open challenge (closer-call needs your call)
@@ -106,6 +107,7 @@ const { values: o, positionals: pos } = parseArgs({
     hourly: { type: "boolean" },
     "max-take": { type: "string" },
     ours: { type: "string" },
+    from: { type: "string" },
     source: { type: "boolean" },
   },
 });
@@ -463,6 +465,42 @@ async function main() {
       workspace: o.dir,
       ours,
     });
+  }
+
+  if (cmd === "dispatch") {
+    // Raw material for a dispatch: every duel from --from (default: the last 40), in order, with the game, the
+    // players, their on-chain notes, our bots' declines and reasons, and the result.
+    const c = ctx();
+    const { readVerdicts } = await import("./bot.ts");
+    const { describeGame } = await import("./games.ts");
+    const verdicts = readVerdicts(c.net.name);
+    const count = await duelCount(c);
+    const from = o.from ? BigInt(o.from) : count > 40n ? count - 40n : 0n;
+    const ds = await getDuels(c, from, count);
+    const names = new Map<string, string>();
+    const nm = async (a: Address) => {
+      const k = a.toLowerCase();
+      if (!names.has(k)) names.set(k, (await c.pub.readContract({ address: c.net.crows, abi: crowsAbi, functionName: "nameOf", args: [a] })) || a.slice(0, 8));
+      return names.get(k)!;
+    };
+    const note = async (id: bigint, p: Address) => (await c.pub.readContract({ address: c.net.crows, abi: crowsAbi, functionName: "noteOf", args: [id, p] }))[0];
+    const lines: string[] = [];
+    for (const d of ds) {
+      const zero = "0x0000000000000000000000000000000000000000";
+      const game = d.game.kind === "custom" ? (await describeGame(c, d.resolver).catch(() => null))?.name ?? "custom" : d.game.kind;
+      const a = await nm(d.a.player);
+      const b = d.b.player === zero ? "" : await nm(d.b.player);
+      const when = (t: bigint) => new Date(Number(t) * 1000).toISOString().slice(5, 16).replace("T", " ");
+      lines.push(`#${d.id} ${game} ${d.state}${d.state === "settled" ? ` (${d.outcome})` : ""}: ${a}${b ? ` vs ${b}` : ""}, $${fmtUsd(d.a.stake)}/$${fmtUsd(d.state === "open" || d.state === "cancelled" ? d.stakeB : d.b.stake)}, take by ${when(d.takeBy)}, settle by ${when(d.settleBy)}`);
+      const na = await note(d.id, d.a.player);
+      if (na) lines.push(`    ${a}: "${na}"`);
+      if (b) {
+        const nb = await note(d.id, d.b.player);
+        if (nb) lines.push(`    ${b}: "${nb}"`);
+      }
+      for (const v of verdicts.filter((v) => v.duel === d.id.toString())) lines.push(`    ${v.name} ${v.take ? "took" : "declined"}: "${v.reason}"`);
+    }
+    return out({ from: from.toString(), to: count.toString(), lines }, lines.join("\n"));
   }
 
   if (cmd === "dev") return dev();

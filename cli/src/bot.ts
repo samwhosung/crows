@@ -60,6 +60,23 @@ export function readJournal(network: string, who: Address): JournalEntry[] {
 
 const log = (who: string, msg: string) => console.log(`${new Date().toISOString()} [${who}] ${msg}`);
 
+/** Every verdict our bots reach on a dare (taken or declined, with the reason), shared across the bots on this
+ * machine so an inventor can learn why its dares were or weren't taken. Declines never reach the chain. */
+export type Verdict = { at: number; duel: string; judge: Address; name: string; take: boolean; reason: string };
+function verdictsPath(network: string) {
+  const dir = join(crowsHome(), network);
+  mkdirSync(dir, { recursive: true });
+  return join(dir, "verdicts.jsonl");
+}
+export function readVerdicts(network: string): Verdict[] {
+  const p = verdictsPath(network);
+  if (!existsSync(p)) return [];
+  return readFileSync(p, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
+}
+function recordVerdict(network: string, v: Verdict) {
+  appendFileSync(verdictsPath(network), JSON.stringify(v) + "\n");
+}
+
 /**
  * One loop, forever: do chores (reveal, settle, cancel), then play the current slot.
  *  - house: posts an UP and a DOWN up-down challenge for every window, and takes any even-money up-down or
@@ -369,6 +386,7 @@ async function judgeOpen(c: Clients, o: BotOpts, t: bigint, recent: Duel[], expo
       continue;
     }
     journal(c, { slot: 0, at: Date.now(), duels: [d.id.toString()], kind: "judged", take: verdict.take, reason: verdict.reason });
+    recordVerdict(c.net.name, { at: Date.now(), duel: d.id.toString(), judge: me, name: await nameOf(c, me), take: verdict.take, reason: verdict.reason });
     if (!verdict.take) {
       log(tag, `declined #${d.id}: ${verdict.reason}`);
       continue;
@@ -404,13 +422,38 @@ async function inventOne(c: Clients, o: BotOpts, t: bigint, recent: Duel[], expo
   // Games so far: one line each, oldest first. Names and rules come from the games themselves.
   const byGame = new Map<string, Duel[]>();
   for (const d of recent) if (d.game.kind === "custom") byGame.set(d.resolver.toLowerCase(), [...(byGame.get(d.resolver.toLowerCase()) ?? []), d]);
+  const verdicts = readVerdicts(c.net.name);
+  const q = (s: string | null | undefined) => (s ? `"${s.replace(/\s+/g, " ").slice(0, 200)}"` : "");
+  /** One line on how a dare went: who took it and why, or who declined it and why, and the result. */
+  const fate = async (d: Duel) => {
+    const parts: string[] = [];
+    if (d.b.player !== zeroAddr) {
+      const [bn, bNote] = await Promise.all([nameOf(c, d.b.player), noteOf(c, d.id, d.b.player)]);
+      parts.push(`taken by ${bn}${bNote ? `, who wrote ${q(bNote)}` : ""}`);
+    }
+    const declined = verdicts.filter((v) => v.duel === d.id.toString() && !v.take && v.judge.toLowerCase() !== d.a.player.toLowerCase());
+    if (declined.length) parts.push(`declined by ${declined.map((v) => `${v.name} (${q(v.reason)})`).join("; ")}`);
+    if (d.state === "cancelled") parts.push("expired untaken");
+    else if (d.state === "settled") {
+      const w = winnerOf(d);
+      parts.push(w ? `${w === d.a.player ? "the inventor" : "the taker"} won $${fmtUsd(w === d.a.player ? d.b.stake : d.a.stake)}` : "a draw");
+    } else parts.push(d.state);
+    return parts.join("; ");
+  };
   const past: string[] = [];
+  const myDares: string[] = [];
   for (const ds of byGame.values()) {
     const info = await describeGame(c, ds[0].resolver).catch(() => null);
     if (!info) continue;
     const by = await nameOf(c, ds[0].a.player);
-    const results = ds.map((d) => (d.state === "settled" ? (winnerOf(d) ? `#${d.id} won by ${winnerOf(d) === d.a.player ? "its inventor" : "the taker"}` : `#${d.id} drawn`) : `#${d.id} ${d.state}`)).join(", ");
-    past.push(`- ${info.name.slice(0, 40)} by ${by}: ${info.rules.replace(/\s+/g, " ").slice(0, 220)} [${results}]`);
+    const mine = ds[0].a.player.toLowerCase() === me.toLowerCase();
+    const fates = await Promise.all(ds.map(async (d) => `#${d.id}: ${await fate(d)}`));
+    const line = `- ${info.name.slice(0, 40)} by ${mine ? "you" : by}: ${info.rules.replace(/\s+/g, " ").slice(0, 220)} [${fates.join(" | ")}]`;
+    (mine ? myDares : past).push(line);
+    if (mine) {
+      const pitch = await noteOf(c, ds[0].id, me);
+      if (pitch) myDares.push(`  your pitch was ${q(pitch)}`);
+    }
   }
   const openDuels: string[] = [];
   for (const d of recent) {
@@ -429,6 +472,7 @@ async function inventOne(c: Clients, o: BotOpts, t: bigint, recent: Duel[], expo
         crows: c.net.crows,
         feeds: feedsText(c),
         pastGames: past.join("\n"),
+        myDares: myDares.join("\n"),
         openDuels: openDuels.join("\n"),
         workspace: ws,
         duelBets: !!c.net.duelBet,
