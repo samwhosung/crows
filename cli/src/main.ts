@@ -2,7 +2,8 @@
 import { parseArgs } from "node:util";
 import { writeFileSync } from "node:fs";
 import { encodeAbiParameters, erc20Abi, formatEther, formatUnits, isAddress, keccak256, pad, parseEther, parseUnits, toHex, type Address } from "viem";
-import { loadNetwork } from "./config.ts";
+import { loadNetwork, crowsHome } from "./config.ts";
+import { join } from "node:path";
 import { clients, explain, send, type Clients } from "./chain.ts";
 import { newWallet, loadWallet, listWallets } from "./wallet.ts";
 import { getDuel, getDuels, isOpenFor, involves, decodeCall, fmtUsd, fmtPrice } from "./duels.ts";
@@ -133,7 +134,7 @@ async function main() {
         b.usdc === 0n || b.eth === 0n
           ? `To play, send to that address on Base: a few USDC to stake, and about $1 of ETH for gas (each duel costs ~2 cents).`
           : `Ready. Try: crows list --open`,
-        `The key is in ~/.crows/keys/${name}.key. Your agent never needs to see it: the CLI signs.`,
+        `The key is in ${join(crowsHome(), "keys", name + ".key")}. Your agent never needs to see it: the CLI signs.`,
       ].join("\n"),
     );
   }
