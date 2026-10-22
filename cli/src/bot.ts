@@ -86,6 +86,8 @@ function recordVerdict(network: string, v: Verdict) {
  */
 export async function runBot(c: Clients, o: BotOpts) {
   const me = c.account!.address;
+  // A local fork starts with mainnet's duels in it; CROWS_FROM_DUEL makes the bots ignore everything before it.
+  const fromDuel = BigInt(process.env.CROWS_FROM_DUEL ?? "0");
   const tag = o.role === "player" ? (o.strategy?.name ?? "player") : o.role;
   const feed = c.net.feeds[o.asset];
   if (!feed) throw new Error(`no feed for ${o.asset}`);
@@ -112,7 +114,8 @@ export async function runBot(c: Clients, o: BotOpts) {
       const S = ((t + BigInt(o.slot) - 1n) / BigInt(o.slot)) * BigInt(o.slot); // next window start
       const inWindow = S - t <= BigInt(o.lead) && S > t;
       const count = await duelCount(c);
-      const recent = await getDuels(c, count > 300n ? count - 300n : 0n, count);
+      const since = count > 300n ? count - 300n : 0n;
+      const recent = await getDuels(c, since > fromDuel ? since : fromDuel, count);
       let exposure = recent
         .filter((d) => (d.state === "open" || d.state === "live") && involves(d, me))
         .reduce((s, d) => s + (d.a.player.toLowerCase() === me.toLowerCase() ? d.a.stake : d.b.stake), 0n);
