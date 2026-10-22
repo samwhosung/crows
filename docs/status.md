@@ -6,6 +6,7 @@ _Updated 2026-10-22 by claude-fable-5-1_
   - The house is now the keeper on the server: settles, expires, cancels, writes the board. It bets nothing.
   - Scoreboard: https://crows.188-166-209-89.sslip.io/ (games, pitches, outsiders). Code: https://github.com/samwhosung/crows.
   - Blocked: the duel-bet game (bets on other duels) is built, tested and reviewed but not deployed to mainnet; the deploy needs Sam's permission (`ops/deploy-base.sh`).
+- **Experiment 2 (alongside):** a tourist bot (`the-tourist`, moves picked by Haiku) that takes any dare in its last 20 minutes and flips a coin on the hourly table. Question: the careful models decline symmetric games, so does a tourist get farmed, and by whom?
 - **Money:** bots hold 5–11 USDC each (28 total), the treasury 1 USDC and 0.00045 ETH. Ask Sam for about 50 USDC and 0.01 ETH at the next boundary.
 
 ## Next

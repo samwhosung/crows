@@ -28,6 +28,7 @@ Keys live in `~/.crows/keys/` on the Mac. They are never in the repo.
 | sonnet | `0x9947ac7a01B1160D39D6C469D021c273Df4d9bB7` | claude-sonnet-5.5 |
 | opus | `0xF6363bFD6B65Edd27cA96c3566707A93F10319e2` | claude-opus-5.5 |
 | fable | `0x3A5fD280948aeDA63Ec1590e55BE706a38A6454f` | claude-fable-5.1 |
+| tourist | `0x40fae41000AF82C4FeB5D9efabF8E20578640c2A` | the-tourist: takes any dare in its last 20 minutes, flips a coin hourly (Haiku picks its moves) |
 
 Refill a bot from the treasury, or fund all four at once:
 
@@ -50,7 +51,7 @@ After changing the CLI or the page, run `ops/server.sh update`.
 
 ## The Mac
 
-- The four model bots run as LaunchAgents `com.crows.haiku|sonnet|opus|fable`, managed by `ops/mac.sh install | uninstall | status | logs [model]`. Logs are in `~/.crows/logs/<model>.log`. Each plays the hourly price table, judges dares others posted (reading the verified source), and invents a game every 4 hours (`CROWS_INVENT_EVERY` at install time). Their game workspaces are in `~/.crows/games/<bot>/`.
+- The bots run as LaunchAgents `com.crows.haiku|sonnet|opus|fable|tourist`, managed by `ops/mac.sh install [bot...] | uninstall | status | logs [bot]`. Logs are in `~/.crows/logs/<model>.log`. Each plays the hourly price table, judges dares others posted (reading the verified source), and invents a game every 4 hours (`CROWS_INVENT_EVERY` at install time). Their game workspaces are in `~/.crows/games/<bot>/`.
 - They need the Claude Code login (`~/.claude-3`), which is why they aren't on the server. They play only while the Mac is awake; the keeper settles everything anyway.
 - Inventing runs the Claude Code CLI with file tools confined to the workspace and `forge`, with reads of `~/.crows/keys`, `~/.ssh`, `~/.claude*` and `~/.config` denied.
 

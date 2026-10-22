@@ -1,12 +1,23 @@
 #!/bin/sh
-# The four model bots (Haiku, Sonnet, Opus, Fable) on Sam's Mac: they need the Claude Code login. Each runs as a
-# LaunchAgent, so it starts at login and restarts if it dies. They only play while the Mac is awake; the keeper on
-# the server settles everything anyway.
+# The bots on Sam's Mac: the four models (Haiku, Sonnet, Opus, Fable) and the tourist. They need the Claude Code
+# login. Each runs as a LaunchAgent, so it starts at login and restarts if it dies. They only play while the Mac is
+# awake; the keeper on the server settles everything anyway.
 #
-#   ops/mac.sh install | uninstall | status | logs [model]
+#   ops/mac.sh install [bot...] | uninstall | status | logs [bot]
 set -eu
 ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
 MODELS="haiku sonnet opus fable"
+BOTS="$MODELS tourist"
+
+# What each bot runs. Models invent a game every few hours and judge dares carefully; the tourist takes any dare it
+# sees in its last 20 minutes and flips a coin on the hourly table (experiment 2: who farms the tourist?).
+args_for() {
+  case "$1" in
+    tourist) echo "--strategy tourist --hourly --stake 1 --max 6 --max-take 1" ;;
+    *) echo "--strategy claude:$1 --hourly --invent ${CROWS_INVENT_EVERY:-4h} --stake 1 --max 10 --max-take 2" ;;
+  esac
+}
+xml_args() { for a in $(args_for "$1"); do printf '    <string>%s</string>\n' "$a"; done; }
 LOGS="$HOME/.crows/logs"
 NODE_BIN="$(dirname "$(command -v node)")"
 CLAUDE_BIN="$(dirname "$(command -v claude)")"
@@ -24,7 +35,7 @@ unload() {
 case "${1:-status}" in
   install)
     mkdir -p "$LOGS" "$HOME/Library/LaunchAgents"
-    for m in $MODELS; do
+    shift; for m in ${*:-$BOTS}; do
       cat > "$(plist "$m")" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -35,9 +46,7 @@ case "${1:-status}" in
   <array>
     <string>$ROOT/cli/bin/crows</string>
     <string>bot</string><string>--as</string><string>$m</string>
-    <string>--strategy</string><string>claude:$m</string>
-    <string>--hourly</string><string>--invent</string><string>${CROWS_INVENT_EVERY:-4h}</string>
-    <string>--stake</string><string>1</string><string>--max</string><string>10</string><string>--max-take</string><string>2</string>
+$(xml_args "$m")
   </array>
   <key>EnvironmentVariables</key>
   <dict>
@@ -59,19 +68,19 @@ EOF
       unload "$m"
       launchctl bootstrap "gui/$(id -u)" "$(plist "$m")"
     done
-    echo "installed: $MODELS (logs in $LOGS)"
+    echo "installed: ${*:-$BOTS} (logs in $LOGS)"
     ;;
   uninstall)
-    for m in $MODELS; do unload "$m"; rm -f "$(plist "$m")"; done
-    echo "removed: $MODELS"
+    for m in $BOTS; do unload "$m"; rm -f "$(plist "$m")"; done
+    echo "removed: $BOTS"
     ;;
   status)
-    for m in $MODELS; do
+    for m in $BOTS; do
       printf '%s: ' "$m"
       launchctl print "gui/$(id -u)/$(label "$m")" 2>/dev/null | grep -E "state =" | head -1 | tr -d '\t' || echo "not loaded"
       tail -n 2 "$LOGS/$m.log" 2>/dev/null | sed 's/^/    /' || true
     done
     ;;
   logs) tail -f "$LOGS/${2:-opus}.log" ;;
-  *) echo "usage: ops/mac.sh install|uninstall|status|logs [model]"; exit 1 ;;
+  *) echo "usage: ops/mac.sh install [bot...]|uninstall|status|logs [bot]"; exit 1 ;;
 esac
