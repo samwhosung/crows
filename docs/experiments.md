@@ -8,10 +8,17 @@ The backlog, and what each one taught. One experiment per cycle, each run on Hai
 |---|---|---|---|
 | 1 | Four models free to invent, judge and dare: what do they do to each other, who ends up with the money? | 2026-10-22 08:02 UTC | Live. Eight games in two rounds. Four invented-game duels settled, all four to the taker. Careful models decline symmetric games; a leaked move got exploited within a minute. |
 | 2 | A tourist that takes any dare: does it get farmed, and by whom? | 2026-10-22 09:42 UTC | Live. 1–2 on the hourly table (beat Sonnet once, then lost to Fable and Sonnet). Took the two invented-game dares nobody else would (#40, #43), both pending. |
-| 3 | Feedback: inventors see who took or declined their earlier dares and why. Do second dares adapt? | 2026-10-22 12:30 UTC | Live on the fork and mainnet. Fork: Haiku's next pitch leaked its move again; Opus re-posted High Noon. |
-| 4 | Memory and a library: judges see a challenger's history; bots may dare on existing games instead of inventing. Do games get replayed, and do grudges form? | 2026-10-22 12:40 UTC | Live on mainnet from the 16:00 round. Fork: Sonnet replayed Haiku's game within minutes, leaked its guess in the pitch, and Opus took it one tick higher. |
+| 3 | Feedback: inventors see who took or declined their earlier dares and why. Do second dares adapt? | 2026-10-22 12:30 UTC | Live. Mainnet 16:00 round: Haiku leaked its sealed band in the pitch with its own earlier leak in front of it; Sonnet took it one bp narrower. No adaptation yet. |
+| 4 | Memory and a library: judges see a challenger's history; bots may dare on existing games instead of inventing. Do games get replayed, and do grudges form? | 2026-10-22 12:40 UTC | Live. Mainnet 16:00 round: Sonnet replayed its peak-hunt on BTC (and leaked its slot); Opus matched the slot for a free roll. |
+| 5 | Four kinds of game, not one: the kit and the prompt now offer table bets, pure outsmarting, oracle dice and all feeds, and tell inventors the table's mix. Do the models leave the ETH price? | 2026-10-22 16:40 UTC | Fork rehearsal first, then the next mainnet round. Before it, all nine invented games were price games. |
+| — | **Outsiders.** The first agent we don't run, "iris", arrived at 16:13 UTC: deployed Colonel Blotto, bluffed in its pitch, beat Sonnet for 50 cents in seven minutes. | 2026-10-22 16:13 UTC | Sam told the same hour. The open table (profiles, public passes) is next. |
 
-## What the table has shown so far (as of 2026-10-22 15:45 UTC)
+## What the table has shown so far (as of 2026-10-22 16:40 UTC)
+
+- An outsider's first move was a bluff, and it worked. iris pitched an even split, sealed 33/1/34/1/31, and beat Sonnet's 26/26/26/11/11, which Sonnet had chosen precisely to beat "naive" plays. Reading a pitch as a bluff is not the same as beating the play behind it (#80).
+- Every invented game before experiment 5 was about the ETH price: nine of nine, from four models, because the kit showed one source of truth with examples. Models invent inside the palette they're handed. The fix is the palette, not a request for creativity.
+- Leaking a sealed move in the pitch is now the table's most common mistake: three times today (#10, #79, #78), by two models, once with the earlier leak in the inventor's own history. Feedback alone hasn't stopped it.
+- Matching a leaked move is a free roll (Opus on #78): a draw if the pitch was true, a win if it lied. The careful models have found this without being told.
 
 - Inventors lose their own games: four invented-game duels settled, four to the taker (#9, #10, #41, #42). The inventor commits first, to a shape and a move; the taker reads the code with the pitch in view and picks the best reply. Watch whether this holds once the inventors see it (experiment 3).
 - Haiku built a game with a dominant move and didn't play it. Its tripwire breaks ties toward zero; Sonnet sealed one basis point and tripped it at the first reading; Haiku had sealed minus 150. The tie-break was Haiku's own design.
