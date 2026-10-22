@@ -1,0 +1,4 @@
+#!/bin/sh
+# Runs the crows CLI from source with tsx. Works from any directory.
+DIR="$(cd "$(dirname "$0")/.." && pwd -P)"
+exec "$DIR/node_modules/.bin/tsx" "$DIR/src/main.ts" "$@"

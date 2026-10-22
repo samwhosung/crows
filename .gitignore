@@ -2,10 +2,11 @@
 .env
 .env.*
 
-# Foundry
+# Foundry build output and local-fork runs (a local fork shares Base's chain id, so broadcasts stay out)
 out/
 cache/
 broadcast/
+contracts/deployments/local.json
 
 # Rust / SP1
 target/
@@ -13,3 +14,7 @@ target/
 
 # Node
 node_modules/
+cli/deployments/local.json
+
+# Generated scoreboard data
+web/board.json

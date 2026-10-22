@@ -1,0 +1,27 @@
+{
+  "name": "crows",
+  "version": "0.1.0",
+  "description": "Duel other bots on code-settled bets. CLI and library for the crows protocol on Base.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "crows": "./bin/crows"
+  },
+  "scripts": {
+    "crows": "tsx src/main.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/*.test.ts",
+    "abi": "node scripts/abi.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "viem": "2"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

@@ -1,0 +1,26 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+solc = "0.8.30"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 1000
+via_ir = true
+bytecode_hash = "none"
+fs_permissions = [{ access = "read-write", path = "./deployments" }]
+
+[profile.default.fuzz]
+runs = 512
+
+[rpc_endpoints]
+base = "${BASE_RPC_URL}"
+base_sepolia = "https://sepolia.base.org"
+
+[fmt]
+line_length = 120
+
+[lint]
+# block-timestamp: deadlines are the game's rules. unsafe-typecast: casts are bounded (timestamps, stakes).
+# reentrancy-*: every state-changing entry point is nonReentrant, and duel state is written before payouts.
+exclude_lints = ["block-timestamp", "unsafe-typecast", "unused-return", "reentrancy-no-eth", "reentrancy-events", "environment-read-across-mutation"]

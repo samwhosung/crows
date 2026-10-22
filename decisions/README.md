@@ -15,3 +15,4 @@ One file per settled choice, in the format of the shared `decision` skill (`~/de
 | [0009](0009-v0-evidence-classes.md) | v0 evidence: compute, windowed prices, chain state, drand, other markets | accepted |
 | [0010](0010-neutral-primitive-arena-first.md) | Neutral primitive with an agent arena first; agents write the games | superseded by 0011 |
 | [0011](0011-demand-test-duels-on-the-compact.md) | Test demand first: bot duels on market calls, with The Compact holding the money | accepted |
+| [0012](0012-launch-shape-house-and-up-down.md) | Launch as "take the house's money": flat house, up-or-down bets, one Claude bot, profit as the score | accepted |

@@ -1,19 +1,36 @@
 # Status
-_Updated 2026-10-22 by claude-fable-5-1_
+_Updated 2026-10-22 by claude-opus-5-5_
 
 ## Now
-- Direction landed (decision 0011): no kernel of our own, The Compact holds the money, first use is bot duels on market calls, and a demand test comes before anything else.
-- Building the test, in this order: trim the resolver interface, the Compact arbiter contract, the duel resolver template (price feed, window, scoring, stake, opponent), a Claude Code skill that writes and opens a challenge, and a read-only scoreboard.
+- **Built and running on a local fork of Base mainnet.** Pieces:
+  - Contracts: `Crows` plus three games (closer-call, up-down, price-line) on Uniswap's The Compact. 34 fork tests pass.
+  - The `crows` CLI and bot runner.
+  - The house and Opus bots.
+  - The scoreboard page and the Claude Code skill.
+
+  Full cycles ran there unattended: post, take, reveal, settle, pay out.
+- **Launch shape** is decision 0012: a flat house, up-or-down bets, one Claude bot, and profit as the score.
+- **Waiting on Sam for funds.** About 30 USDC and 0.005 ETH on Base go to the treasury wallet `0xa0762bef1bA649fA1434C524b9e4cc57c3480079` (key in `~/.crows/keys/`). Then:
+  1. `ops/deploy-base.sh`
+  2. `ops/fund-bots.sh`
+  3. `ops/table.sh start`
 
 ## Next
-- Deploy on Base mainnet with small real money. Recruit a mixed cohort of about ten operators (Claude Code users, trading-bot operators, scripts, a human), hand them one ready-made challenge and no further instructions.
-- Run for a month and judge: what got used, by which kind of setup, and what they built that we didn't plan. If nothing, park the project and record why.
+- Let the house and Opus play for a day or two on mainnet, so the board has real history.
+- Publish the scoreboard. The page is static (`web/`); its data file is written every minute by `ops/board-loop.sh`. It needs a host, and the repo needs to be public for outsiders to install the CLI. Both are Sam's call.
+- Invite about ten bot operators directly (`docs/launch.md`), then post.
+- Measure against 0012's definition of "used" for a month.
 
 ## Later
-- Only on demand: SP1 adapter and Rust guest template (0006), adapters for CTF, ERC-8183 and Sapience (0008), invented-game resolvers, an indexer keyed by eventId, an MCP server.
-- Beyond: a Solana port, sealed matching, markets with more than two outcomes.
+- Only if outsiders show up:
+  - move the bots to a small server;
+  - third-party bets on duels;
+  - more assets;
+  - a game for the hour's range, where volatility gives real edge;
+  - publish the CLI to npm.
+- Earlier ideas stay parked until there's demand: SP1 resolvers (0006), adapters (0008), and invented-game resolvers.
 
 ## Watch
 - Legal treatment of real-money bets between bots (flagged in 0011, not researched).
-- The Compact: allocator requirements and any v2 changes; whether a simple on-chain allocator is enough for two-sided locks.
-- Sapience Meridian (does it keep open resolvers?), Hyperliquid HIP-4 going permissionless, ERC-8183/8004 and x402 escrow schemes, Base Validity Transactions.
+- The Compact v1 behaviour that crows relies on, noted in `contracts/src/interfaces/ICompact.sol`.
+- Chainlink ETH/USD on Base: heartbeat and deviation settings, and any phase change. A phase change mid-duel turns it into a refund.
