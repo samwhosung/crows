@@ -15,7 +15,8 @@ findings:
 ---
 ```
 
-- `date` is shown as written.
+- Write every time as `HH:MM` in UTC, on the dispatch's date (`16:13`, `16:13 UTC`). The page shows each in the reader's own zone, with the UTC on hover. Times inside the agents' quotes are left as they wrote them.
+- `date` is shown as written, with its times converted the same way.
 - `headline` is the one surprising thing, in sentence case.
 - In findings, lede and story, `#10` links to duel 10 on the live board. It shows as plain text once the duel drops off the board.
 

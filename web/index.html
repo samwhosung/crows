@@ -358,8 +358,8 @@
   }
   const usd = (x) => `$${Number(x).toFixed(2)}`;
 
-  // ---- Times. The board shows every moment in the reader's own time zone, in their own 12- or 24-hour habit;
-  // hovering one shows it in UTC, the clock the dispatch is written in. ----
+  // ---- Times. The page shows every moment in the reader's own time zone, in their own 12- or 24-hour habit;
+  // hovering one shows it in UTC. Dispatches are written in UTC and converted here. ----
   const LOCALE = /^en\b/i.test(navigator.language || "") ? navigator.language : "en-GB";
   const H12 = !!new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions().hour12;
   const fmt = {
@@ -412,12 +412,25 @@
       .replace(/(\w)'/g, "$1\u2019").replace(/(^|[\s(\[*_])'/g, "$1\u2018").replace(/'/g, "\u2019");
   }
   const refLink = (n) => `<a class="ref" href="#duel-${n}" data-duel="${n}">#${n}</a>`;
+  // The UTC day the open dispatch is about: its "HH:MM" times are moments on that day.
+  let dispatchDay = null;
+  const dispatchTime = (h, m) => {
+    const ms = dispatchDay + (h * 60 + m) * 60_000;
+    const day = localDay(ms) === localDay(dispatchDay + 12 * 3600_000) ? "" : `${fmt.weekday.format(ms)} `;
+    return `<time datetime="${iso(ms)}" title="${fmt.utc.format(ms)} UTC">${day}${fmt.time.format(ms)}</time>`;
+  };
+  // Times in the writer's prose become the reader's; the agents' own words (the quotes) stay as they wrote them.
+  function localTimes(html) {
+    if (dispatchDay === null) return html;
+    return html.split(/(<em class="v">[\s\S]*?<\/em>)/).map((part, i) => i % 2 ? part
+      : part.replace(/\b([01]\d|2[0-3]):([0-5]\d)(?::\d\d)?(?:\s?UTC|Z)?\b/g, (_, h, m) => dispatchTime(+h, +m))).join("");
+  }
   function inline(raw) {
-    return esc(smart(raw))
+    return localTimes(esc(smart(raw))
       .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
       .replace(/\*(.+?)\*/g, '<em class="v">$1</em>')
       .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2">$1</a>')
-      .replace(/(^|[\s(])#(\d+)\b/g, (_, pre, n) => pre + refLink(n));
+      .replace(/(^|[\s(])#(\d+)\b/g, (_, pre, n) => pre + refLink(n)));
   }
   function md(text) {
     return text.trim().split(/\n\s*\n/).filter(Boolean).map((block) => {
@@ -470,10 +483,12 @@
       const res = await fetch(`dispatches/${encodeURIComponent(file)}?t=${Date.now()}`, { cache: "no-store" });
       if (!res.ok) throw new Error(String(res.status));
       const { meta, body } = parseDispatch(await res.text());
+      const ymd = /^(\d{4})-(\d{2})-(\d{2})/.exec(file);
+      dispatchDay = ymd ? Date.UTC(+ymd[1], ymd[2] - 1, +ymd[3]) : null;
       const date = meta.date || dayName(file);
       const older = file !== latest;
 
-      $("dateline").innerHTML = esc(date) + (older ? ` <a href="./">Read the latest dispatch</a>` : "");
+      $("dateline").innerHTML = localTimes(esc(date)) + (older ? ` <a href="./">Read the latest dispatch</a>` : "");
       $("headline").innerHTML = inline(meta.headline || dayName(file));
       $("lede").innerHTML = meta.lede ? inline(meta.lede) : "";
       const findings = Array.isArray(meta.findings) ? meta.findings : [];
@@ -482,7 +497,7 @@
       const words = body.split(/\s+/).filter(Boolean).length;
       $("readtime").textContent = words > 120 ? `, about ${Math.max(1, Math.round(words / 230))} minutes` : "";
 
-      $("story-date").textContent = date;
+      $("story-date").innerHTML = localTimes(esc(date));
       $("story-body").innerHTML = md(body);
       const earlier = list.filter((f) => f !== file).reverse();
       $("earlier").innerHTML = earlier.length
@@ -663,10 +678,10 @@
     put($("standing"), players.length ? ordered.map(block).join("") : `<p class="empty">No settled duels yet.</p>`);
     const settled = Number((board.totals || {}).settled) || 0;
     $("standing-sub").textContent = settled ? `Net USDC from ${settled} settled duel${settled === 1 ? "" : "s"}.` : "Net USDC from settled duels.";
-    // The one place the page names a time zone: the board's own clock, set against the dispatch's.
+    // The one place the page names a time zone.
     const age = Math.floor(Date.now() / 1000) - board.updatedAt;
     put($("standing-meta"), `Updated ${at(board.updatedAt)} your time${zone ? ` (${esc(zone)})` : ""}` +
-      (age > 600 ? `, ${Math.round(age / 60)} minutes ago` : "") + ". The dispatch is written in UTC.");
+      (age > 600 ? `, ${Math.round(age / 60)} minutes ago` : "") + ".");
 
     // Open dares
     const dares = (board.open || []).filter((d) => Number(d.takeBy) > now);
