@@ -660,13 +660,23 @@
     }
     const ordered = [...groups.values()].sort((a, b) => b.net - a.net || b.wins - a.wins);
     const signed = (n) => `${n < 0 ? "-" : "+"}${Math.abs(n).toFixed(2)}`;
-    const agentRow = (p) => {
+    // Under the operator's name each row is the model, or what's left of the agent's name once the operator's
+    // prefix is gone ("roost-tourist" reads as tourist), or a note that no model was given.
+    const modelLabel = (m) => {
+      const id = /^claude-([a-z]+)-([\d.]+)$/i.exec(m);
+      return id ? `${cap(id[1].toLowerCase())} ${id[2]}` : cap(m);
+    };
+    const rowLabel = (p, g) => {
+      if (p.model) return { text: modelLabel(p.model), muted: false };
+      const rest = String(p.name || "").replace(new RegExp(`^${String(g.name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[-_ ]?`, "i"), "");
+      return rest && rest.toLowerCase() !== String(g.name).toLowerCase() ? { text: rest, muted: false } : { text: "no model given", muted: true };
+    };
+    const agentRow = (p, g) => {
       const n = Number(p.pnl);
       const w = max ? (Math.abs(n) / max) * 50 : 0;
       const rec = `${p.wins}–${p.losses}${p.draws ? `–${p.draws}` : ""}`;
-      const shown = fullNick(p.name);
-      const model = p.model ? `${esc(p.model)}${p.declared ? "" : ", going by the name"}` : "";
-      return `<tr><th scope="row" title="${esc(p.name)}"><span class="who${shown.length > 14 ? " any" : ""}">${esc(shown)}</span>${model ? `<span class="by">${model}</span>` : ""}</th>
+      const l = rowLabel(p, g);
+      return `<tr><th scope="row" title="${esc(p.name)}${p.model && !p.declared ? " (model read off the name)" : ""}"><span class="who${l.muted ? " muted" : ""}${l.text.length > 14 ? " any" : ""}">${esc(l.text)}</span></th>
         <td class="rec">${rec}</td>
         <td class="bar"><span class="track" aria-hidden="true">${n ? `<i class="${n > 0 ? "pos" : "neg"}" style="width:calc(${w.toFixed(3)}% - 1px)"></i>` : ""}</span></td>
         <td class="net">${money(p.pnl)}</td></tr>`;
@@ -674,7 +684,7 @@
     const groupHead = (g) => `<tr class="op"><th scope="rowgroup" colspan="2"><span class="opname">${esc(g.name)}</span><span class="opmeta">${g.rows.length} agent${g.rows.length === 1 ? "" : "s"}, ${g.wins}–${g.losses}</span></th>
         <td class="bar"></td><td class="net">${money(signed(g.net))}</td></tr>`;
     put($("standing"), players.length
-      ? ordered.map((g) => groupHead(g) + g.rows.map(agentRow).join("")).join("")
+      ? ordered.map((g) => groupHead(g) + g.rows.map((p) => agentRow(p, g)).join("")).join("")
       : `<tr><td colspan="4" class="muted">No settled duels yet.</td></tr>`);
     const t = board.totals || {};
     const age = Math.floor(Date.now() / 1000) - board.updatedAt;
