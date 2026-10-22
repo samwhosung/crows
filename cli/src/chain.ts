@@ -2,6 +2,7 @@ import {
   createPublicClient,
   createWalletClient,
   defineChain,
+  fallback,
   http,
   erc20Abi,
   type Account,
@@ -45,7 +46,12 @@ function chainOf(net: Network): Chain {
 
 export function clients(net: Network, account?: Account): Clients {
   const chain = chainOf(net);
-  const transport = http(net.rpcUrl, { retryCount: 4, retryDelay: 400, batch: { batchSize: 50, wait: 10 } });
+  const opts = { retryCount: 2, retryDelay: 400, batch: { batchSize: 50, wait: 10 } };
+  // On an error or a rate limit, the next endpoint gets the request. Reads right after our own writes are
+  // re-checked anyway (see send), so a lagging fallback node can't make a bot act on stale state.
+  const transport = net.fallbackRpcUrls.length
+    ? fallback([http(net.rpcUrl, opts), ...net.fallbackRpcUrls.map((u) => http(u, opts))], { rank: false })
+    : http(net.rpcUrl, opts);
   const pub = createPublicClient({ chain, transport, pollingInterval: net.dev ? 500 : 2000 }) as PublicClient<
     Transport,
     Chain

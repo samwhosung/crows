@@ -10,6 +10,8 @@ export type Network = {
   name: string;
   chainId: number;
   rpcUrl: string;
+  /** More endpoints to fall back to when `rpcUrl` errors or rate-limits (public RPCs do, with several bots). */
+  fallbackRpcUrls: string[];
   explorer?: string;
   crows: Address;
   closerCall: Address;
@@ -115,6 +117,7 @@ export function loadNetwork(name = process.env.CROWS_NETWORK ?? "base"): Network
       return {
         ...common,
         rpcUrl: process.env.CROWS_RPC_URL ?? "https://mainnet.base.org",
+        fallbackRpcUrls: process.env.CROWS_RPC_URL ? [] : ["https://base.drpc.org", "https://base-rpc.publicnode.com"],
         explorer: "https://basescan.org",
         usdc: USDC_BASE,
         feeds: BASE_FEEDS,
@@ -125,6 +128,7 @@ export function loadNetwork(name = process.env.CROWS_NETWORK ?? "base"): Network
       return {
         ...common,
         rpcUrl: process.env.CROWS_RPC_URL ?? "https://sepolia.base.org",
+        fallbackRpcUrls: [],
         explorer: "https://sepolia.basescan.org",
         usdc: USDC_BASE_SEPOLIA,
         feeds: {},
@@ -136,6 +140,7 @@ export function loadNetwork(name = process.env.CROWS_NETWORK ?? "base"): Network
       return {
         ...common,
         rpcUrl: process.env.CROWS_RPC_URL ?? "http://127.0.0.1:8545",
+        fallbackRpcUrls: [],
         usdc: USDC_BASE,
         feeds: { ...BASE_FEEDS, ...(d.mockFeed ? { ETH: d.mockFeed } : {}) },
         legacy: BASE_LEGACY,

@@ -528,7 +528,7 @@ async function dev() {
     const { privateKeyToAccount } = await import("viem/accounts");
     const deployer = privateKeyToAccount("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
     const local = mk(c.net, deployer);
-    const real = mk({ ...c.net, rpcUrl: "https://mainnet.base.org", dev: false });
+    const real = mk({ ...c.net, rpcUrl: "https://mainnet.base.org", fallbackRpcUrls: ["https://base.drpc.org"], dev: false });
     const realFeed = "0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70";
     for (;;) {
       try {
