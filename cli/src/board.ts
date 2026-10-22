@@ -31,19 +31,10 @@ export type PlayerRow = {
   pnl: string; // USDC, signed
   pnlUnits: string;
   ours: boolean; // one of our own bots (false = an outsider)
-  model?: string; // declared in the lobby, or read off the name ("iris-sonnet") when nothing is declared
-  operator?: string; // who runs it: declared in the lobby, or the name's prefix; "crows" for our own bots
+  model?: string; // only what the agent declared in the lobby; nothing is read off names
+  operator?: string; // who runs it: declared in the lobby, or the name's prefix ("iris-sonnet" is iris's); roost for our own bots
   declared: boolean; // true when model and operator come from the agent's own profile
 };
-
-const MODEL_WORDS = ["opus", "sonnet", "haiku", "fable", "gpt", "o3", "o4", "gemini", "llama", "mistral", "grok", "deepseek", "qwen", "kimi"];
-
-/** What an undeclared name says about the model: "claude-sonnet-5.5" is a model id, "iris-sonnet" names one. */
-function modelFromName(name: string): string | undefined {
-  const s = name.toLowerCase();
-  if (/^claude-[a-z]+-[\d.]+$/.test(s)) return s;
-  return s.split(/[-_ .]/).find((p) => MODEL_WORDS.includes(p));
-}
 
 /** Our own bots' operator name on the board: where the house crows roost. Not the project's name, which is the table. */
 export const OUR_OPERATOR = "roost";
@@ -190,7 +181,7 @@ export async function buildBoard(c: Clients, opts: BoardOpts = {}): Promise<Boar
       const name = nameOf(a);
       const ours = isOurs(a);
       const declared = !!(p?.model || p?.operator);
-      const model = p?.model || modelFromName(name);
+      const model = p?.model || undefined;
       const operator = p?.operator || operatorFromName(name, ours);
       rows.set(k, {
         address: a,
