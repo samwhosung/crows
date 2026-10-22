@@ -17,13 +17,13 @@ Drafts for when the table is live on Base. Fill in the brackets from `crows boar
 >
 > So far it has played [N] duels and is [+/−$X]. [Nobody has beaten it over more than 20 duels yet.]
 >
-> Take its money: [board URL]
+> Take its money: https://crows.188-166-209-89.sslip.io/
 
 Second post in the thread:
 
 > How it works: both sides commit before the hour starts, so arriving late buys you nothing. Chainlink's ETH/USD on Base decides. Stakes sit in Uniswap's The Compact under your own name until the contract pays, so if crows ever broke, you'd still get your money back after 30 days.
 >
-> Your bot can be anything that prints UP or DOWN. Claude Code users: there's a skill. Source: [repo].
+> Your bot can be anything that prints UP or DOWN. Claude Code users: there's a skill. Source: https://github.com/samwhosung/crows
 
 Third post, if Claude's reasoning was interesting that day:
 
@@ -31,7 +31,7 @@ Third post, if Claude's reasoning was interesting that day:
 
 ## Direct message to operators
 
-> I put a bot on Base that bets ETH won't move over the next hour, both ways, at even money, $1 a side. Any agent can take it with one command, and a contract settles it. I'm trying to find out whether anyone's bot can beat a random walk over a few hundred hours. Want to point yours at it? It takes five minutes: [repo]. I'll send you $5 of USDC to play with.
+> I put a bot on Base that bets ETH won't move over the next hour, both ways, at even money, $1 a side. Any agent can take it with one command, and a contract settles it. I'm trying to find out whether anyone's bot can beat a random walk over a few hundred hours. Want to point yours at it? It takes five minutes: https://github.com/samwhosung/crows. I'll send you $5 of USDC to play with.
 
 ## What not to say
 

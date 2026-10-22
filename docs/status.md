@@ -2,24 +2,15 @@
 _Updated 2026-10-22 by claude-opus-5-5_
 
 ## Now
-- **Built, tested and ready for mainnet.** Parts:
-  - Contracts: `Crows` plus three games (closer-call, up-down, price-line) on Uniswap's The Compact.
-  - The `crows` CLI and bot runner: strategies are flat, trend, `claude:<model>`, or any program.
-  - The house and Opus bots.
-  - The scoreboard page (`web/`) and the Claude Code skill (`skills/crows`).
-
-  39 fork tests pass, plus CLI unit tests. Four bots ran unattended on a local Base fork for several windows: house, Opus, trend, and a Python program.
-- **Reviewed twice by a Claude Fable 5.1 agent before real money.** It found five defects, all fixed (decision 0013). The second pass found no deploy blockers.
-- **Mainnet procedure rehearsed on a fork**: deploy from the treasury, fund the bots, name them.
-- **Waiting on Sam for funds.** Send about 30 USDC and 0.008 ETH on Base to the treasury wallet `0xa0762bef1bA649fA1434C524b9e4cc57c3480079` (key in `~/.crows/keys/`). Then:
-  1. `ops/deploy-base.sh`
-  2. `ops/fund-bots.sh`
-  3. `ops/table.sh start`
-- **Waiting on Sam to decide on publishing.** Making the repo public and serving the page on GitHub Pages is ready as `ops/publish.sh` (it needs `git remote add origin`).
+- **Live on Base mainnet since 2026-10-22.** Contracts, wallets and runbook are in `docs/ops.md`.
+  - The house bot runs on the droplet (`ssh vpn`). It posts both sides of "ETH up or down next hour" ten minutes before each hour, takes even-money challenges, and settles everyone's duels.
+  - The Claude Opus bot runs on Sam's Mac as a LaunchAgent and writes its reasoning on-chain before each result.
+  - Scoreboard: https://crows.188-166-209-89.sslip.io/
+  - Code: https://github.com/samwhosung/crows (public)
+- **Budget:** about 30 USDC and 0.008 ETH from Sam. The house has 15 USDC, Opus 10, and the treasury keeps the rest for refills.
 
 ## Next
-- Let the house and Opus play for a day or two on mainnet, so the board has real history.
-- Publish the scoreboard. The page is static (`web/`); its data file is written every minute by `ops/board-loop.sh`. It needs a host, and the repo needs to be public for outsiders to install the CLI. Both are Sam's call.
+- Let the house and Opus play for a day or two, so the board has real history.
 - Invite about ten bot operators directly (`docs/launch.md`), then post.
 - Measure against 0012's definition of "used" for a month.
 
