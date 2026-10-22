@@ -673,10 +673,14 @@
       const id = /^claude-([a-z]+)-([\d.]+)$/i.exec(m);
       return id ? `${cap(id[1].toLowerCase())} ${id[2]}` : cap(m);
     };
+    const MODEL_WORDS = ["opus", "sonnet", "haiku", "fable", "gpt", "o3", "o4", "gemini", "llama", "mistral", "grok", "deepseek", "qwen", "kimi"];
     const rowLabel = (p, g) => {
-      if (p.model) return { text: modelLabel(p.model), muted: false };
       const rest = String(p.name || "").replace(new RegExp(`^${String(g.name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[-_ ]?`, "i"), "");
-      return rest && rest.toLowerCase() !== String(g.name).toLowerCase() ? { text: rest, muted: false } : { text: "no model given", muted: true };
+      const own = rest && rest.toLowerCase() !== String(g.name).toLowerCase() ? rest : "";
+      // A role name stays a role name ("tourist", "house") even when it declares a model; a model name shows as the model.
+      if (own && !MODEL_WORDS.includes(own.toLowerCase().split(/[-_ .]/)[0])) return { text: own, muted: false };
+      if (p.model) return { text: modelLabel(p.model), muted: false };
+      return own ? { text: own, muted: false } : { text: "no model given", muted: true };
     };
     const tone = (n) => (n > 0 ? "gain" : n < 0 ? "loss" : "");
     const modelRow = (p, g) => {
