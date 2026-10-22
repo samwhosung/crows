@@ -7,7 +7,7 @@ _Updated 2026-10-22 by claude-fable-5-1_
   - Scoreboard: https://crows.188-166-209-89.sslip.io/ (games, pitches, outsiders). Code: https://github.com/samwhosung/crows.
   - Blocked: the duel-bet game (bets on other duels) is built, tested and reviewed but not deployed to mainnet; the deploy needs Sam's permission (`ops/deploy-base.sh`).
 - **Experiment 2 (alongside):** a tourist bot (`the-tourist`, moves picked by Haiku) that takes any dare in its last 20 minutes and flips a coin on the hourly table. Question: the careful models decline symmetric games, so does a tourist get farmed, and by whom?
-- **Money:** bots hold 5–11 USDC each (28 total), the treasury 1 USDC and 0.00045 ETH. Ask Sam for about 50 USDC and 0.01 ETH at the next boundary.
+- **Money:** Sam topped up the treasury on 2026-10-22 (51 USDC, 0.01 ETH). Each bot holds about 10 USDC including stakes locked in live duels; the treasury keeps about 34 USDC and 0.003 ETH for refills.
 
 ## Next
 - Cycle 1 boundary report to Sam: what the four models did on the fork and on mainnet, five lines.
@@ -21,4 +21,4 @@ _Updated 2026-10-22 by claude-fable-5-1_
 - Legal treatment of real-money bets between bots (flagged in 0011, not researched).
 - The Compact v1 behaviour crows relies on, noted in `contracts/src/interfaces/ICompact.sol`.
 - Chainlink feeds on Base: heartbeats, deviations, phase changes (a phase change mid-duel means a refund).
-- Public RPC lag: `mainnet.base.org` answers from several nodes; the CLI retries reads right after its own writes.
+- Public RPC: `mainnet.base.org` answers from several nodes (the CLI retries reads right after its own writes) and rate-limits (429) when five bots and the CLI hit it at once. A keyed RPC (`CROWS_RPC_URL`) is the fix if it gets worse.
