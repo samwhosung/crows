@@ -219,3 +219,9 @@ export async function cancel(c: Clients, id: bigint) {
 export async function setName(c: Clients, name: string) {
   return send(c, { address: c.net.crows, abi: crowsAbi, functionName: "setName", args: [name] });
 }
+
+/** Record a one-line reason for a duel you're in (once, before it's decided). */
+export async function note(c: Clients, id: bigint, text: string) {
+  return send(c, { address: c.net.crows, abi: crowsAbi, functionName: "note", args: [id, text.slice(0, 280)] });
+}
+

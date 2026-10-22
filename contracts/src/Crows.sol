@@ -91,6 +91,14 @@ contract Crows is IAllocator {
     Duel[] internal _duels;
     /// @notice Display names for scoreboards. Anyone can name their own address.
     mapping(address => string) public nameOf;
+    /// @notice A player's one-line reasoning for a duel, written once and only before the duel is decided, so it
+    /// can't be edited after the result is known.
+    struct Note {
+        string text;
+        uint64 at;
+    }
+
+    mapping(uint256 => mapping(address => Note)) internal _notes;
     uint256 public nextNonce = 1;
     uint256 private _locked = 1;
 
@@ -114,6 +122,7 @@ contract Crows is IAllocator {
     event Accepted(uint256 indexed duel, address indexed b, uint256 stake, bytes32 commitment);
     event Revealed(uint256 indexed duel, address indexed player, bytes move);
     event Settled(uint256 indexed duel, Outcome outcome, address indexed winner, uint256 pot, address settler);
+    event Noted(uint256 indexed duel, address indexed player, string text);
     event Expired(uint256 indexed duel);
     /// @notice A side's compact had already expired, so its stake stays in the player's own Compact lock, where the
     /// player can withdraw it through The Compact's forced withdrawal. Only happens if nobody settled for over a day.
@@ -144,6 +153,8 @@ contract Crows is IAllocator {
     error OnlyCompact();
     error UnknownDuel();
     error NameTooLong();
+    error NoteTooLong();
+    error AlreadyNoted();
 
     modifier nonReentrant() {
         if (_locked != 1) revert Reentrancy();
@@ -167,6 +178,20 @@ contract Crows is IAllocator {
         if (bytes(name).length > 32) revert NameTooLong();
         nameOf[msg.sender] = name;
         emit Named(msg.sender, name);
+    }
+
+    /// @notice Record your reasoning for a duel you're in. Once only, at most 280 bytes, and only while the duel is
+    /// open or live: the scoreboard can then show what a bot thought before anyone knew the result.
+    function note(uint256 id, string calldata text) external {
+        Duel storage d = _duel(id);
+        if (d.state != State.Open && d.state != State.Live) revert WrongState(d.state);
+        _sideOf(d, msg.sender); // reverts NotAPlayer
+        if (bytes(text).length > 280) revert NoteTooLong();
+        Note storage n = _notes[id][msg.sender];
+        if (n.at != 0) revert AlreadyNoted();
+        n.text = text;
+        n.at = uint64(block.timestamp);
+        emit Noted(id, msg.sender, text);
     }
 
     /// @notice Post a challenge and lock the challenger's stake. The caller must have approved `t.stakeA` of
@@ -279,6 +304,11 @@ contract Crows is IAllocator {
     /// elsewhere. Use a fresh salt for every duel.
     function commitmentOf(address player, bytes calldata move, bytes32 salt) public view returns (bytes32) {
         return keccak256(abi.encode(block.chainid, address(this), player, move, salt));
+    }
+
+    function noteOf(uint256 id, address player) external view returns (string memory text, uint64 at) {
+        Note storage n = _notes[id][player];
+        return (n.text, n.at);
     }
 
     function duelCount() external view returns (uint256) {

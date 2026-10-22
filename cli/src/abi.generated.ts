@@ -681,6 +681,53 @@ export const crowsAbi = [
   },
   {
     "type": "function",
+    "name": "note",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "text",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "noteOf",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "player",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "text",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "at",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "reveal",
     "inputs": [
       {
@@ -914,6 +961,31 @@ export const crowsAbi = [
   },
   {
     "type": "event",
+    "name": "Noted",
+    "inputs": [
+      {
+        "name": "duel",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "player",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "text",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "PayoutSkipped",
     "inputs": [
       {
@@ -1001,6 +1073,11 @@ export const crowsAbi = [
   },
   {
     "type": "error",
+    "name": "AlreadyNoted",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "AlreadyRevealed",
     "inputs": []
   },
@@ -1053,6 +1130,11 @@ export const crowsAbi = [
   {
     "type": "error",
     "name": "NotYet",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NoteTooLong",
     "inputs": []
   },
   {

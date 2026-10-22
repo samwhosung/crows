@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Address } from "viem";
 import { crowsAbi } from "./abi.generated.ts";
@@ -34,7 +34,7 @@ export type DuelRow = {
   time: number; // when the duel was decided (or will be)
   summary: string; // one human line
   take?: string; // CLI command to take it, for open duels
-  notes?: { name: string; text: string }[]; // bots' own one-line reasons, when the board is built on their machine
+  notes?: { name: string; text: string }[]; // players' one-line reasons, recorded on-chain before the result
   takeBy?: number;
 };
 
@@ -73,22 +73,7 @@ function priceCache(network: string) {
 const short = (a: Address) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 const hhmm = (t: bigint) => new Date(Number(t) * 1000).toISOString().slice(11, 16) + " UTC";
 
-/** Reasons bots on this machine gave for their picks, by duel id. */
-function localNotes(network: string): Map<string, string> {
-  const dir = join(crowsHome(), network);
-  const notes = new Map<string, string>();
-  if (!existsSync(dir)) return notes;
-  for (const f of readdirSync(dir).filter((f) => f.endsWith(".journal.jsonl"))) {
-    for (const line of readFileSync(join(dir, f), "utf8").split("\n").filter(Boolean)) {
-      const j = JSON.parse(line);
-      if (j.pick?.reason) for (const id of j.duels ?? []) notes.set(`${id}:${f.slice(0, 42)}`, j.pick.reason);
-    }
-  }
-  return notes;
-}
-
 export async function buildBoard(c: Clients): Promise<Board> {
-  const notes = localNotes(c.net.name);
   const duels = await getDuels(c);
   const t = await chainNow(c);
   const prices = priceCache(c.net.name);
@@ -143,9 +128,15 @@ export async function buildBoard(c: Clients): Promise<Board> {
     }
     if (d.state === "settled" || d.state === "live") {
       const r = await duelRow(c, d, nameOf, prices);
-      const n = [d.a.player, d.b.player]
-        .map((p) => ({ name: nameOf(p), text: notes.get(`${d.id}:${p.toLowerCase()}`) }))
-        .filter((x): x is { name: string; text: string } => !!x.text);
+      // Each player's on-chain note: written once, before the duel was decided.
+      const n = (
+        await Promise.all(
+          [d.a.player, d.b.player].map(async (p) => {
+            const [text] = await c.pub.readContract({ address: c.net.crows, abi: crowsAbi, functionName: "noteOf", args: [d.id, p] });
+            return { name: nameOf(p), text };
+          }),
+        )
+      ).filter((x) => !!x.text);
       if (n.length) r.notes = n;
       recent.push(r);
     }

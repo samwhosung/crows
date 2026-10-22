@@ -1,10 +1,10 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { formatUnits, parseUnits, type Address } from "viem";
 import type { Clients } from "./chain.ts";
 import { explain } from "./chain.ts";
 import { crowsHome } from "./config.ts";
-import { accept, challenge, chainNow, tick } from "./actions.ts";
+import { accept, challenge, chainNow, note, tick } from "./actions.ts";
 import { getDuels, duelCount, isOpenFor, involves, type Duel } from "./duels.ts";
 import { feedDecimals, latestRound, roundsSince } from "./rounds.ts";
 import type { Pick, Strategy, View } from "./strategies.ts";
@@ -18,6 +18,7 @@ export type BotOpts = {
   lead: number; // posting opens this many seconds before a window starts
   maxExposure: string; // USDC that may be locked at once
   interval: number; // seconds between loops
+  board?: string; // if set, write the scoreboard data to this file about once a minute
 };
 
 type JournalEntry = { slot: number; at: number; strategy?: string; pick?: Pick; duels: string[]; note?: string };
@@ -55,6 +56,7 @@ export async function runBot(c: Clients, o: BotOpts) {
   const stake = parseUnits(o.stake, 6);
   const maxExposure = parseUnits(o.maxExposure, 6);
   const done = new Set(readJournal(c.net.name, me).map((j) => j.slot));
+  let lastBoard = 0;
   log(tag, `${me} on ${c.net.name}: ${o.asset}, $${o.stake} stakes, ${o.slot}s windows`);
 
   for (;;) {
@@ -85,6 +87,13 @@ export async function runBot(c: Clients, o: BotOpts) {
         // Players wait a little into the posting window, so the house's bets are usually already up.
         done.add(Number(S));
         await playerPlay(c, o, S, t, recent, exposure, maxExposure, stake, dec, feed, tag);
+      }
+      if (o.board && Date.now() - lastBoard > 55_000) {
+        lastBoard = Date.now();
+        const { buildBoard } = await import("./board.ts");
+        const b = await buildBoard(c);
+        writeFileSync(o.board + ".tmp", JSON.stringify(b, (_, v) => (typeof v === "bigint" ? v.toString() : v)));
+        renameSync(o.board + ".tmp", o.board);
       }
     } catch (e) {
       log(tag, `loop error: ${explain(e)}`);
@@ -232,6 +241,16 @@ async function playerPlay(
     }
   }
   journal(c, { slot: Number(S), at: Date.now(), strategy: o.strategy!.name, pick, duels });
+  // Put the reasoning on-chain before anyone knows the result.
+  if (pick.reason) {
+    for (const id of duels) {
+      try {
+        await note(c, BigInt(id), pick.reason);
+      } catch (e) {
+        log(tag, `note on #${id} failed: ${explain(e)}`);
+      }
+    }
+  }
 }
 
 function journal(c: Clients, e: JournalEntry) {

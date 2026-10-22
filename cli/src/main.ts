@@ -6,7 +6,7 @@ import { loadNetwork } from "./config.ts";
 import { clients, explain, send, type Clients } from "./chain.ts";
 import { newWallet, loadWallet, listWallets } from "./wallet.ts";
 import { getDuel, getDuels, isOpenFor, involves, decodeCall, fmtUsd, fmtPrice } from "./duels.ts";
-import { challenge, accept, tick, settleOne, cancel, setName, parseTime, chainNow, type GameName } from "./actions.ts";
+import { challenge, accept, tick, settleOne, cancel, setName, note, parseTime, chainNow, type GameName } from "./actions.ts";
 import { latestRound, roundsSince, feedDecimals } from "./rounds.ts";
 import { buildBoard } from "./board.ts";
 import { crowsAbi, resolverAbi, mockFeedAbi } from "./abi.generated.ts";
@@ -32,12 +32,14 @@ Play
   crows challenge price-line  --line <price> --side over|under [--at ...]   --stake 1
       common: --asset ETH  --their-stake <usdc>  --opponent <address>  --take-by <time>
   crows tick [--all] [--watch <seconds>]   reveal your sealed calls, settle/expire/cancel what's due
+  crows note <id> <text>            put your reasoning on-chain (once, before the result)
   crows settle <id>  |  crows cancel <id>
 
 Run a bot (loops forever: plays every window, reveals, settles)
   crows bot --strategy flat|trend|claude:<model>|cmd:"<program>"  [--stake 1 --slot 3600 --max 10]
       cmd: your program gets the market on stdin as JSON and prints {"direction":"up|down|skip","call":<price>}
   crows bot --role house            post UP and DOWN every window; take even-money challenges
+      --board <file>  also write the scoreboard data there about once a minute
 
 Options: --as <wallet>  --network base|local  --json
 Times: unix seconds, ISO 8601, +30m, +2h, or next-hour. Prices in dollars (e.g. 2441.25).
@@ -80,6 +82,7 @@ const { values: o, positionals: pos } = parseArgs({
     lead: { type: "string" },
     max: { type: "string" },
     interval: { type: "string" },
+    board: { type: "string" },
   },
 });
 
@@ -296,6 +299,12 @@ async function main() {
     return;
   }
 
+  if (cmd === "note") {
+    const c = ctx(true);
+    await note(c, BigInt(pos[1]), pos.slice(2).join(" "));
+    return out({ ok: true }, `noted on #${pos[1]}`);
+  }
+
   if (cmd === "settle") {
     const c = ctx(true);
     const ok = await settleOne(c, BigInt(pos[1]));
@@ -335,6 +344,7 @@ async function main() {
       lead: Number(o.lead ?? Math.floor(Number(o.slot ?? 3600) / 6)),
       maxExposure: o.max ?? "10",
       interval: Number(o.interval ?? 20),
+      board: o.board,
     });
   }
 

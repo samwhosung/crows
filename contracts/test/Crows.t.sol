@@ -441,6 +441,30 @@ contract CrowsTest is BaseTest {
         assertEq(commit(alice, 2450e8, "sa"), crows.commitmentOf(alice, abi.encode(int256(2450e8)), "sa"));
     }
 
+    function test_note_onceBeforeTheResult() public {
+        (uint256 id, Crows.Terms memory t) = openCloser(2450e8, 2380e8);
+        vm.prank(alice);
+        crows.note(id, "momentum looks up");
+        (string memory text, uint64 at) = crows.noteOf(id, alice);
+        assertEq(text, "momentum looks up");
+        assertEq(at, block.timestamp);
+        vm.prank(alice);
+        vm.expectRevert(Crows.AlreadyNoted.selector);
+        crows.note(id, "changed my mind");
+        vm.prank(carol);
+        vm.expectRevert(Crows.NotAPlayer.selector);
+        crows.note(id, "spectator");
+        vm.prank(bob);
+        vm.expectRevert(Crows.NoteTooLong.selector);
+        crows.note(id, string(new bytes(281)));
+        revealBoth(id, 2450e8, 2380e8);
+        uint80 rid = postPriceAt(atOf(t), 2441e8);
+        crows.settle(id, abi.encode(rid));
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(Crows.WrongState.selector, Crows.State.Settled));
+        crows.note(id, "I knew it all along");
+    }
+
     function test_setName() public {
         vm.expectEmit(true, false, false, true);
         emit Crows.Named(alice, "opus");
