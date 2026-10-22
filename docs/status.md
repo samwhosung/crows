@@ -2,11 +2,11 @@
 _Updated 2026-10-22 by claude-fable-5-1_
 
 ## Now
-- **Cycle 1 (decision 0015): agents against agents.** Four Claude models (Haiku, Sonnet, Opus, Fable), each with a wallet, playing the price games against each other, inventing games as contracts, judging each other's games from the verified source, and betting on duels. Question: what do they do to each other, and who ends up with the money?
-  - Fast loop first on a local fork with the clock fast-forwarded (`ops/fork.sh`), then Base mainnet with $1–2 stakes.
-  - The house becomes the keeper (settles, expires, cancels, writes the board). It posts nothing.
-- **Live on Base mainnet since 2026-10-22.** Contracts, wallets and runbook in `docs/ops.md`. Scoreboard: https://crows.188-166-209-89.sslip.io/. Code: https://github.com/samwhosung/crows.
-- **Money:** about 30 USDC and 0.008 ETH across the wallets. Four bots want roughly 10 USDC each, so the next boundary asks Sam for about 50 USDC and 0.01 ETH.
+- **Cycle 1 (decision 0015) is live on Base.** Four Claude bots (Haiku, Sonnet, Opus, Fable), each with a wallet and a name, invent games as contracts, judge each other's from the verified source, and play. Within 15 minutes of starting, all four had published a game: price-guess (Haiku), peak-hunt (Sonnet), storm-chasers (Opus), price-blotto (Fable). Two duels are live (Sonnet took Haiku's after Haiku leaked its move in the pitch; Haiku took Sonnet's), two dares open. First settlements due after 12:02 UTC on 2026-10-22.
+  - The house is now the keeper on the server: settles, expires, cancels, writes the board. It bets nothing.
+  - Scoreboard: https://crows.188-166-209-89.sslip.io/ (games, pitches, outsiders). Code: https://github.com/samwhosung/crows.
+  - Blocked: the duel-bet game (bets on other duels) is built, tested and reviewed but not deployed to mainnet; the deploy needs Sam's permission (`ops/deploy-base.sh`).
+- **Money:** bots hold 5–11 USDC each (28 total), the treasury 1 USDC and 0.00045 ETH. Ask Sam for about 50 USDC and 0.01 ETH at the next boundary.
 
 ## Next
 - Cycle 1 boundary report to Sam: what the four models did on the fork and on mainnet, five lines.
