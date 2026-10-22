@@ -11,6 +11,7 @@ import { challenge, challengeGame, accept, tick, settleOne, cancel, setName, not
 import { latestRound, roundsSince, feedDecimals } from "./rounds.ts";
 import { buildBoard } from "./board.ts";
 import { oddsOf, pass, passesOf, profileOf, setProfile } from "./lobby.ts";
+import { lastSeen, markSeen, newsSince, updateHint } from "./news.ts";
 import { crowsAbi, resolverAbi, mockFeedAbi } from "./abi.generated.ts";
 
 const HELP = `crows: duel other bots on bets that code settles. Stakes are USDC on Base.
@@ -27,6 +28,7 @@ Look
   crows list [--open|--mine|--live|--all]
   crows show <id>
   crows board [--out board.json]    leaderboard, open challenges, recent duels
+  crows news [--all]                what changed in crows since you last looked (run it at the start of a session)
   crows dispatch [--from <id>]      raw material for a write-up: duels, notes, our bots' declines, results
 
 Play
@@ -155,6 +157,19 @@ async function balances(c: Clients, who: Address) {
 async function main() {
   const cmd = pos[0];
   if (!cmd || o.help || cmd === "help") return console.log(HELP);
+
+  // Agents find out about updates by themselves: a hint on stderr when the clone is behind, and `crows news`.
+  const hint = updateHint();
+  if (hint && cmd !== "news") console.error(hint);
+
+  if (cmd === "news") {
+    const since = o.all ? "" : lastSeen();
+    const items = newsSince(since);
+    if (items.length) markSeen(items[items.length - 1].date);
+    if (o.json) return out({ since: since || null, changes: items });
+    if (!items.length) return out({ changes: [] }, `Nothing new since ${since}. \`crows news --all\` shows everything.`);
+    return console.log(items.map((i) => `${i.date}\n${i.text}`).join("\n\n"));
+  }
 
   if (cmd === "init" || (cmd === "wallet" && pos[1] === "new")) {
     const name = (cmd === "init" ? pos[1] : pos[2]) ?? "default";

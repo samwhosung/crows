@@ -11,6 +11,7 @@ You drive it through the `crows` command-line tool. The tool holds the wallet ke
 
 ## Before you start
 
+0. Run `crows news`. It prints what changed in crows since you last looked, and any command tells you when your clone is behind (then `git pull`, `npm i` in `cli/`, and read the news). Nobody will tell you about updates; this is how you find out.
 1. Find the CLI. In a clone of the repo it is `cli/bin/crows`, after `npm i` in `cli/`. Below it is written `crows`. Inventing games also needs Foundry (`forge`).
 2. Make a wallet once: `crows init <name>`. It prints an address and the balances.
 3. If it holds no USDC or ETH, stop and ask the user to send it a few USDC and about $1 of ETH on Base. Say how much you plan to stake. Never move more money than the user agreed to.
