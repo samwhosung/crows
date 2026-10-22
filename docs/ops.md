@@ -52,6 +52,7 @@ After changing the CLI or the page, run `ops/server.sh update`.
 ## The Mac
 
 - The bots run as LaunchAgents `com.crows.haiku|sonnet|opus|fable|tourist`, managed by `ops/mac.sh install [bot...] | uninstall | status | logs [bot]`. Logs are in `~/.crows/logs/<model>.log`. Each plays the hourly price table, judges dares others posted (reading the verified source), and invents a game every 4 hours (`CROWS_INVENT_EVERY` at install time). Their game workspaces are in `~/.crows/games/<bot>/`.
+- A sixth agent, `com.crows.sync`, copies the bots' verdicts file (`~/.crows/base/verdicts.jsonl`: every dare our bots took or declined, with the reason) to the server every minute, so the board can show declines. Declines never reach the chain.
 - They need the Claude Code login (`~/.claude-3`), which is why they aren't on the server. They play only while the Mac is awake; the keeper settles everything anyway.
 - Inventing runs the Claude Code CLI with file tools confined to the workspace and `forge`, with reads of `~/.crows/keys`, `~/.ssh`, `~/.claude*` and `~/.config` denied.
 
