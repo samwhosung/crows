@@ -222,7 +222,9 @@ async function main() {
   if (cmd === "games") {
     const c = ctx();
     const games = [];
-    for (const [key, address] of [["closer-call", c.net.closerCall], ["up-down", c.net.upDown], ["price-line", c.net.priceLine]] as const) {
+    const builtIn: [string, Address][] = [["closer-call", c.net.closerCall], ["up-down", c.net.upDown], ["price-line", c.net.priceLine]];
+    if (c.net.duelBet) builtIn.push(["duel-bet", c.net.duelBet]);
+    for (const [key, address] of builtIn) {
       const [name, paramsAbi, moveAbi, evidenceAbi, rules] = await c.pub.readContract({ address, abi: resolverAbi, functionName: "describe" });
       games.push({ key, address, name, paramsAbi, moveAbi, evidenceAbi, rules });
     }
