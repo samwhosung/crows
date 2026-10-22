@@ -1,4 +1,5 @@
 import { homedir } from "node:os";
+import { getAddress, isAddress, type Address } from "viem";
 import { run } from "./strategies.ts";
 
 /**
@@ -13,7 +14,7 @@ export type Offer = {
   game: { address: string; name: string; rules: string; paramsAbi: string; moveAbi: string };
   params: Record<string, unknown> | null;
   source: { published: boolean; files: Record<string, string> };
-  challenger: { address: string; name: string; record: string };
+  challenger: { address: string; name: string; record: string; history: string }; // history: their earlier dares and how they went
   pitch: string | null; // the challenger's on-chain note, if any
   stakes: { theirs: string; yours: string }; // USDC
   times: { now: string; takeBy: string; revealBy: string; settleBy: string };
@@ -37,6 +38,18 @@ export type InventContext = {
 };
 
 export type Invention =
+  | {
+      kind: "dare"; // a new dare on a game that already exists (yours or anyone's)
+      game: Address;
+      params: unknown;
+      move: unknown | null;
+      takeBy: string;
+      revealBy: string | null;
+      settleBy: string;
+      stake: string;
+      theirStake: string;
+      pitch: string;
+    }
   | {
       kind: "game";
       contract: string;
@@ -95,6 +108,9 @@ export async function judge(model: string, persona: string, o: Offer, cwd: strin
     `Duel #${o.duel}. You stake ${o.stakes.yours} USDC against their ${o.stakes.theirs} USDC. The winner takes both.`,
     `Times (UTC): now ${o.times.now}; taking closes ${o.times.takeBy}; moves revealed by ${o.times.revealBy}; must settle by ${o.times.settleBy}, else it's a draw and both get their stake back.`,
     `Your record: ${o.me.record}.`,
+    `What ${o.challenger.name} did before (its earlier dares, who took or declined them and why, and the results):`,
+    o.challenger.history || "(no earlier dares)",
+    ``,
     o.pitch ? `The challenger's pitch: "${o.pitch}"` : `The challenger posted no pitch.`,
     ``,
     `Game: ${o.game.name} at ${o.game.address}`,
@@ -128,7 +144,7 @@ export async function invent(model: string, x: InventContext): Promise<Invention
   const prompt = [
     `You are ${x.me.name}, an AI agent in crows: AI agents invent games, write them as smart contracts, and play each other for real money (USDC) on Base. A contract settles every duel; nobody can overrule it. Your record so far: ${x.me.record}.`,
     ``,
-    `Your job now: invent ONE new game, write it in Solidity, test it, and propose the first duel on it.`,
+    `Your job now: either invent ONE new game (write it in Solidity, test it, and propose the first duel on it), or post a new dare on a game that already exists, listed below with its address and ABIs. Replaying a good game, with your own params and move, is as valid as inventing; a game that keeps getting played builds a record.`,
     `Other agents read your source code before deciding whether to take it: Claude Opus, Claude Sonnet, Claude Fable (careful readers), a tourist bot that takes anything, and outsiders. So:`,
     `- Make it fun or surprising to watch. Strategy games with sealed moves, races between assets, games about other duels, odd bets: all fair game.`,
     `- Pick a game where you believe your judgement or strategy gives you an edge, but that a careful opponent would still accept. An obviously rigged game just gets declined.`,
@@ -164,6 +180,7 @@ export async function invent(model: string, x: InventContext): Promise<Invention
     `When your test passes, reply with ONLY a JSON object${x.duelBets ? ", either" : ""}:`,
     `{"kind":"game","contract":"<ContractName>","params":<JSON array of VALUES in your paramsAbi order, e.g. ["ETH", "+2h", 100], never the types>,"move":<JSON array of values for your moveAbi, or null>,"takeBy":"+90m","revealBy":"+2h" or null,"settleBy":"+10h","stake":"1","theirStake":"1","pitch":"<at most 200 characters: the dare, posted on-chain under your name>"}`,
     `Deadlines: taking closes at takeBy; sealed moves must be revealed by revealBy (if null, 30 minutes after takeBy; set it yourself if your validate() constrains it, e.g. revealBy at or before start); settleBy is the last moment to settle. Check your own validate() against these before replying: a rejected dare costs you the attempt.`,
+    `or, for a dare on an existing game: {"kind":"dare","game":"<the game's address from the list>","params":<JSON array of values in that game's paramsAbi order>,"move":<values for its moveAbi, or null>,"takeBy":"+90m","revealBy":null,"settleBy":"+10h","stake":"1","theirStake":"1","pitch":"<at most 200 characters>"}`,
     ...(x.duelBets ? [`or {"kind":"duel-bet","duel":"<id>","back":"a|b","stake":"1","theirStake":"1","pitch":"<at most 200 characters>"}`] : []),
     `Times are relative to now ("+90m", "+10h") or unix seconds. Addresses in params may be feed symbols like "ETH". Integers may be strings.`,
   ].join("\n");
@@ -193,6 +210,21 @@ export async function invent(model: string, x: InventContext): Promise<Invention
   );
   const j = lastJson(text);
   const pitch = typeof j.pitch === "string" ? j.pitch.slice(0, 280) : "";
+  if (j.kind === "dare") {
+    if (typeof j.game !== "string" || !isAddress(j.game)) throw new Error(`bad dare reply: "game" must be a game's address, got ${JSON.stringify(j.game)}`);
+    return {
+      kind: "dare",
+      game: getAddress(j.game),
+      params: j.params,
+      move: j.move ?? null,
+      takeBy: String(j.takeBy ?? "+90m"),
+      revealBy: j.revealBy ? String(j.revealBy) : null,
+      settleBy: String(j.settleBy ?? "+10h"),
+      stake: String(j.stake ?? "1"),
+      theirStake: String(j.theirStake ?? j.stake ?? "1"),
+      pitch,
+    };
+  }
   if (j.kind === "duel-bet") {
     if (!j.duel || (j.back !== "a" && j.back !== "b")) throw new Error(`bad duel-bet reply: ${JSON.stringify(j)}`);
     return { kind: "duel-bet", duel: String(j.duel), back: j.back, stake: String(j.stake ?? "1"), theirStake: String(j.theirStake ?? j.stake ?? "1"), pitch };

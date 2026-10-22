@@ -347,6 +347,39 @@ function feedsText(c: Clients) {
   ).join("\n");
 }
 
+
+const q = (s: string | null | undefined) => (s ? `"${s.replace(/\s+/g, " ").slice(0, 200)}"` : "");
+
+/** One line on how a dare went: who took it and why, or who declined it and why, and the result. */
+async function dareFate(c: Clients, d: Duel, verdicts: Verdict[]): Promise<string> {
+  const parts: string[] = [];
+  if (d.b.player !== zeroAddr) {
+    const [bn, bNote] = await Promise.all([nameOf(c, d.b.player), noteOf(c, d.id, d.b.player)]);
+    parts.push(`taken by ${bn}${bNote ? `, who wrote ${q(bNote)}` : ""}`);
+  }
+  const declined = verdicts.filter((v) => v.duel === d.id.toString() && !v.take && v.judge.toLowerCase() !== d.a.player.toLowerCase());
+  if (declined.length) parts.push(`declined by ${declined.map((v) => `${v.name} (${q(v.reason)})`).join("; ")}`);
+  if (d.state === "cancelled") parts.push("expired untaken");
+  else if (d.state === "settled") {
+    const w = winnerOf(d);
+    parts.push(w ? `${w === d.a.player ? "the challenger" : "the taker"} won $${fmtUsd(w === d.a.player ? d.b.stake : d.a.stake)}` : "a draw");
+  } else parts.push(d.state);
+  return parts.join("; ");
+}
+
+/** A player's earlier dares on invented games, one line each, newest last. What a judge needs to know them by. */
+async function dareHistory(c: Clients, who: Address, recent: Duel[], verdicts: Verdict[], except?: bigint): Promise<string> {
+  const lines: string[] = [];
+  for (const d of recent) {
+    if (d.a.player.toLowerCase() !== who.toLowerCase() || d.id === except) continue;
+    if (d.game.kind !== "custom" && d.game.kind !== "duel-bet") continue;
+    const info = d.game.kind === "custom" ? await describeGame(c, d.resolver).catch(() => null) : null;
+    const pitch = await noteOf(c, d.id, who);
+    lines.push(`- #${d.id} ${info?.name ?? d.game.kind}${pitch ? `, pitched ${q(pitch)}` : ""}: ${await dareFate(c, d, verdicts)}`);
+  }
+  return lines.slice(-8).join("\n");
+}
+
 /** Look at open challenges on invented games and spectator bets, and take the ones the strategy likes. */
 async function judgeOpen(c: Clients, o: BotOpts, t: bigint, recent: Duel[], exposure: bigint, max: bigint, tag: string): Promise<bigint> {
   const me = c.account!.address;
@@ -376,7 +409,12 @@ async function judgeOpen(c: Clients, o: BotOpts, t: bigint, recent: Duel[], expo
         game: { address: info.address, name: info.name, rules: info.rules + (context ? `\n\n${context}` : ""), paramsAbi: info.paramsAbi, moveAbi: info.moveAbi },
         params: decodeJson(info.paramsAbi, d.params),
         source: { published: src.verified, files: ownFiles(src.files) },
-        challenger: { address: d.a.player, name: await nameOf(c, d.a.player), record: record(d.a.player) },
+        challenger: {
+          address: d.a.player,
+          name: await nameOf(c, d.a.player),
+          record: record(d.a.player),
+          history: await dareHistory(c, d.a.player, recent, readVerdicts(c.net.name), d.id),
+        },
         pitch: await noteOf(c, d.id, d.a.player),
         stakes: { theirs: fmtUsd(d.a.stake), yours: fmtUsd(d.stakeB) },
         times: { now: iso(t), takeBy: iso(d.takeBy), revealBy: iso(d.revealBy), settleBy: iso(d.settleBy) },
@@ -426,23 +464,6 @@ async function inventOne(c: Clients, o: BotOpts, t: bigint, recent: Duel[], expo
   const byGame = new Map<string, Duel[]>();
   for (const d of recent) if (d.game.kind === "custom") byGame.set(d.resolver.toLowerCase(), [...(byGame.get(d.resolver.toLowerCase()) ?? []), d]);
   const verdicts = readVerdicts(c.net.name);
-  const q = (s: string | null | undefined) => (s ? `"${s.replace(/\s+/g, " ").slice(0, 200)}"` : "");
-  /** One line on how a dare went: who took it and why, or who declined it and why, and the result. */
-  const fate = async (d: Duel) => {
-    const parts: string[] = [];
-    if (d.b.player !== zeroAddr) {
-      const [bn, bNote] = await Promise.all([nameOf(c, d.b.player), noteOf(c, d.id, d.b.player)]);
-      parts.push(`taken by ${bn}${bNote ? `, who wrote ${q(bNote)}` : ""}`);
-    }
-    const declined = verdicts.filter((v) => v.duel === d.id.toString() && !v.take && v.judge.toLowerCase() !== d.a.player.toLowerCase());
-    if (declined.length) parts.push(`declined by ${declined.map((v) => `${v.name} (${q(v.reason)})`).join("; ")}`);
-    if (d.state === "cancelled") parts.push("expired untaken");
-    else if (d.state === "settled") {
-      const w = winnerOf(d);
-      parts.push(w ? `${w === d.a.player ? "the inventor" : "the taker"} won $${fmtUsd(w === d.a.player ? d.b.stake : d.a.stake)}` : "a draw");
-    } else parts.push(d.state);
-    return parts.join("; ");
-  };
   const past: string[] = [];
   const myDares: string[] = [];
   for (const ds of byGame.values()) {
@@ -450,8 +471,8 @@ async function inventOne(c: Clients, o: BotOpts, t: bigint, recent: Duel[], expo
     if (!info) continue;
     const by = await nameOf(c, ds[0].a.player);
     const mine = ds[0].a.player.toLowerCase() === me.toLowerCase();
-    const fates = await Promise.all(ds.map(async (d) => `#${d.id}: ${await fate(d)}`));
-    const line = `- ${info.name.slice(0, 40)} by ${mine ? "you" : by}: ${info.rules.replace(/\s+/g, " ").slice(0, 220)} [${fates.join(" | ")}]`;
+    const fates = await Promise.all(ds.map(async (d) => `#${d.id}: ${await dareFate(c, d, verdicts)}`));
+    const line = `- ${info.name.slice(0, 40)} at ${ds[0].resolver} by ${mine ? "you" : by} (params ${info.paramsAbi || "()"}, move ${info.moveAbi || "none"}): ${info.rules.replace(/\s+/g, " ").slice(0, 220)} [${fates.join(" | ")}]`;
     (mine ? myDares : past).push(line);
     if (mine) {
       const pitch = await noteOf(c, ds[0].id, me);
@@ -485,7 +506,20 @@ async function inventOne(c: Clients, o: BotOpts, t: bigint, recent: Duel[], expo
       const now = await chainNow(c);
       let r: { id: bigint; tx: string };
       let label: string;
-      if (inv.kind === "duel-bet") {
+      if (inv.kind === "dare") {
+        const info = await describeGame(c, inv.game);
+        r = await challengeGame(c, {
+          game: inv.game,
+          params: inv.params,
+          move: inv.move ?? undefined,
+          stake: cap(inv.stake),
+          theirStake: cap(inv.theirStake),
+          takeBy: parseTime(inv.takeBy, now),
+          revealBy: inv.revealBy ? parseTime(inv.revealBy, now) : undefined,
+          settleBy: parseTime(inv.settleBy, now),
+        });
+        label = `${info.name} (an existing game)`;
+      } else if (inv.kind === "duel-bet") {
         if (!c.net.duelBet) throw new Error("duel-bet isn't deployed on this network");
         const u = await getDuel(c, BigInt(inv.duel));
         r = await challengeGame(c, {
