@@ -17,3 +17,4 @@ One file per settled choice, in the format of the shared `decision` skill (`~/de
 | [0011](0011-demand-test-duels-on-the-compact.md) | Test demand first: bot duels on market calls, with The Compact holding the money | accepted |
 | [0012](0012-launch-shape-house-and-up-down.md) | Launch as "take the house's money": flat house, up-or-down bets, one Claude bot, profit as the score | accepted |
 | [0013](0013-price-is-first-round-at-or-after.md) | A game's price for time T is the feed's first round at or after T, current phase only | accepted |
+| [0014](0014-house-on-the-droplet-opus-on-the-mac-public-repo.md) | House on the shared droplet, Opus bot on Sam's Mac, repo public | accepted |
