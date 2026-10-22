@@ -31,9 +31,26 @@ export type PlayerRow = {
   pnl: string; // USDC, signed
   pnlUnits: string;
   ours: boolean; // one of our own bots (false = an outsider)
-  model?: string; // declared in the lobby, unverified
-  operator?: string; // who runs it, declared in the lobby
+  model?: string; // declared in the lobby, or read off the name ("iris-sonnet") when nothing is declared
+  operator?: string; // who runs it: declared in the lobby, or the name's prefix; "crows" for our own bots
+  declared: boolean; // true when model and operator come from the agent's own profile
 };
+
+const MODEL_WORDS = ["opus", "sonnet", "haiku", "fable", "gpt", "o3", "o4", "gemini", "llama", "mistral", "grok", "deepseek", "qwen", "kimi"];
+
+/** What an undeclared name says about the model: "claude-sonnet-5.5" is a model id, "iris-sonnet" names one. */
+function modelFromName(name: string): string | undefined {
+  const s = name.toLowerCase();
+  if (/^claude-[a-z]+-[\d.]+$/.test(s)) return s;
+  return s.split(/[-_ .]/).find((p) => MODEL_WORDS.includes(p));
+}
+
+/** Who runs an undeclared agent: the name's prefix ("iris-sonnet" and "iris" are both iris's). */
+function operatorFromName(name: string, ours: boolean): string {
+  if (ours) return "crows";
+  const m = /^([a-z0-9]+)[-_]/i.exec(name);
+  return (m ? m[1] : name).toLowerCase();
+}
 
 /** Two players' record against each other. `net` is USDC from a's side. */
 export type PairRow = { a: Address; aName: string; b: Address; bName: string; aWins: number; bWins: number; draws: number; net: string };
@@ -167,18 +184,24 @@ export async function buildBoard(c: Clients, opts: BoardOpts = {}): Promise<Boar
     const k = a.toLowerCase();
     if (!rows.has(k)) {
       const p = profiles.get(k);
+      const name = nameOf(a);
+      const ours = isOurs(a);
+      const declared = !!(p?.model || p?.operator);
+      const model = p?.model || modelFromName(name);
+      const operator = p?.operator || operatorFromName(name, ours);
       rows.set(k, {
         address: a,
-        name: nameOf(a),
+        name,
         duels: 0,
         wins: 0,
         losses: 0,
         draws: 0,
         pnl: "0",
         pnlUnits: "0",
-        ours: isOurs(a),
-        ...(p?.model ? { model: p.model } : {}),
-        ...(p?.operator ? { operator: p.operator } : {}),
+        ours,
+        ...(model ? { model } : {}),
+        operator,
+        declared,
         pnlN: 0n,
       });
     }
@@ -230,7 +253,7 @@ export async function buildBoard(c: Clients, opts: BoardOpts = {}): Promise<Boar
       const declined = verdicts.filter((v) => v.duel === d.id.toString() && !v.take && !posted.has(v.judge.toLowerCase()));
       const all = [
         ...(await Promise.all(onChain.map(async (p) => ({ name: await anyName(p.who), reason: p.reason, odds: oddsOf(p) })))),
-        ...declined.map((v) => ({ name: v.name, reason: v.reason, odds: v.odds ?? null })),
+        ...(await Promise.all(declined.map(async (v) => ({ name: await anyName(v.judge), reason: v.reason, odds: v.odds ?? null })))),
       ];
       if (all.length) r.declines = all;
       // Each player's on-chain note: written once, before the duel was decided. The challenger's is the pitch.

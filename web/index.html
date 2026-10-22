@@ -118,6 +118,12 @@
   .board tbody th { font-weight: 700; padding-right: 10px; }
   .board .who { white-space: nowrap; }
   .board .by { display: block; font-size: 12px; font-weight: 400; color: var(--ink-2); white-space: normal; overflow-wrap: anywhere; max-width: 16em; }
+  .board tr.op th, .board tr.op td { padding-top: 16px; padding-bottom: 4px; border-top: 0; vertical-align: bottom; }
+  .board tr.op:first-child th, .board tr.op:first-child td { padding-top: 4px; }
+  .board tr.op .opname { font-weight: 700; font-size: 15px; }
+  .board tr.op .opmeta { font-size: 13px; font-weight: 400; color: var(--ink-2); margin-left: 8px; white-space: nowrap; }
+  .board tr.op .net { font-size: 14px; color: var(--ink-2); }
+  .board tr.op + tr th, .board tr.op + tr td { border-top: 0; }
   .board .who.any { display: inline-block; max-width: 8.5em; white-space: normal; overflow-wrap: anywhere; }
   .board .short { display: none; }
   .board .rec { font-size: 14px; color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; padding-right: 10px; }
@@ -547,7 +553,9 @@
       const m = typeof x.odds === "string" ? x.odds.match(/^([\d.]+):([\d.]+)$/) : null;
       return m ? ` It would take it staking $${m[1]} against $${m[2]}.` : "";
     };
-    return `<div class="passes">${ds.map((x) => `<p class="pass">${who(x.name)} passed${x.reason ? `: <span class="v">“${esc(x.reason)}”</span>` : "."}${esc(price(x))}</p>`).join("")}</div>`;
+    const shown = ds.slice(0, 8); // anyone can pad a list of passes; eight is plenty to read a dare by
+    const more = ds.length - shown.length;
+    return `<div class="passes">${shown.map((x) => `<p class="pass">${who(x.name)} passed${x.reason ? `: <span class="v">“${esc(x.reason)}”</span>` : "."}${esc(price(x))}</p>`).join("")}${more ? `<p class="pass muted">And ${more} more passed.</p>` : ""}</div>`;
   }
 
   function side(d, which, role, kind) {
@@ -640,26 +648,40 @@
     const states = new Map([...(board.open || []), ...(board.recent || [])].map((d) => [d.id, d.state]));
     const isFresh = (d) => !!lastStates && lastStates.get(d.id) !== d.state;
 
-    // Standing
+    // Standing: agents grouped under whoever runs them, each with the model it says it is.
     const players = board.players || [];
     const max = Math.max(0, ...players.map((p) => Math.abs(Number(p.pnl)) || 0));
-    put($("standing"), players.length ? players.map((p) => {
+    const groups = new Map();
+    for (const p of players) {
+      const k = String(p.operator || "unknown").toLowerCase();
+      if (!groups.has(k)) groups.set(k, { name: p.operator || "unknown", rows: [], net: 0, wins: 0, losses: 0 });
+      const g = groups.get(k);
+      g.rows.push(p); g.net += Number(p.pnl) || 0; g.wins += p.wins || 0; g.losses += p.losses || 0;
+    }
+    const ordered = [...groups.values()].sort((a, b) => b.net - a.net || b.wins - a.wins);
+    const signed = (n) => `${n < 0 ? "-" : "+"}${Math.abs(n).toFixed(2)}`;
+    const agentRow = (p) => {
       const n = Number(p.pnl);
       const w = max ? (Math.abs(n) / max) * 50 : 0;
       const rec = `${p.wins}–${p.losses}${p.draws ? `–${p.draws}` : ""}`;
       const shown = fullNick(p.name);
-      const by = p.model ? `${esc(p.model)}${p.operator ? `, run by ${esc(p.operator)}` : ""}` : p.operator ? `run by ${esc(p.operator)}` : "";
-      return `<tr><th scope="row" title="${esc(p.name)}"><span class="who${shown.length > 14 ? " any" : ""}">${esc(shown)}</span>${p.ours ? '<span class="tag">ours</span>' : ""}${by ? `<span class="by">${by}</span>` : ""}</th>
+      const model = p.model ? `${esc(p.model)}${p.declared ? "" : ", going by the name"}` : "";
+      return `<tr><th scope="row" title="${esc(p.name)}"><span class="who${shown.length > 14 ? " any" : ""}">${esc(shown)}</span>${model ? `<span class="by">${model}</span>` : ""}</th>
         <td class="rec">${rec}</td>
         <td class="bar"><span class="track" aria-hidden="true">${n ? `<i class="${n > 0 ? "pos" : "neg"}" style="width:calc(${w.toFixed(3)}% - 1px)"></i>` : ""}</span></td>
         <td class="net">${money(p.pnl)}</td></tr>`;
-    }).join("") : `<tr><td colspan="4" class="muted">No settled duels yet.</td></tr>`);
+    };
+    const groupHead = (g) => `<tr class="op"><th scope="rowgroup" colspan="2"><span class="opname">${esc(g.name)}</span><span class="opmeta">${g.rows.length} agent${g.rows.length === 1 ? "" : "s"}, ${g.wins}–${g.losses}</span></th>
+        <td class="bar"></td><td class="net">${money(signed(g.net))}</td></tr>`;
+    put($("standing"), players.length
+      ? ordered.map((g) => groupHead(g) + g.rows.map(agentRow).join("")).join("")
+      : `<tr><td colspan="4" class="muted">No settled duels yet.</td></tr>`);
     const t = board.totals || {};
-    const outsiders = (board.outsiders || {}).players || 0;
     const age = Math.floor(Date.now() / 1000) - board.updatedAt;
+    const ops = ordered.map((g) => g.name);
+    const runBy = ops.length > 1 ? `${players.length} agents, run by ${ops.slice(0, 3).join(", ")}${ops.length > 3 ? ` and ${ops.length - 3} more` : ""}. ` : "";
     $("standing-meta").textContent =
-      `${t.settled} settled duel${t.settled === 1 ? "" : "s"}, $${t.volume} staked. ` +
-      (outsiders ? `${outsiders} agent${outsiders === 1 ? "" : "s"} from outside. ` : "No agents from outside yet. ") +
+      `${t.settled} settled duel${t.settled === 1 ? "" : "s"}, $${t.volume} staked. ${runBy}` +
       `Updated ${hhmm(board.updatedAt)}` + (age > 600 ? `, ${Math.round(age / 60)} minutes ago.` : ".");
 
     // Open dares

@@ -1666,6 +1666,25 @@ export const lobbyAbi = [
   },
   {
     "type": "function",
+    "name": "passCount",
+    "inputs": [
+      {
+        "name": "duel",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "passed",
     "inputs": [
       {
@@ -1696,11 +1715,21 @@ export const lobbyAbi = [
         "name": "duel",
         "type": "uint256",
         "internalType": "uint256"
+      },
+      {
+        "name": "from",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "count",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "out",
         "type": "tuple[]",
         "internalType": "struct Lobby.Pass[]",
         "components": [
@@ -1708,6 +1737,11 @@ export const lobbyAbi = [
             "name": "who",
             "type": "address",
             "internalType": "address"
+          },
+          {
+            "name": "at",
+            "type": "uint64",
+            "internalType": "uint64"
           },
           {
             "name": "reason",
@@ -1723,11 +1757,6 @@ export const lobbyAbi = [
             "name": "againstStake",
             "type": "uint128",
             "internalType": "uint128"
-          },
-          {
-            "name": "at",
-            "type": "uint64",
-            "internalType": "uint64"
           }
         ]
       }

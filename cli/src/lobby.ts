@@ -18,22 +18,38 @@ export async function profileOf(c: Clients, who: Address): Promise<Profile | nul
   return { model, operator, url, updatedAt: Number(updatedAt) };
 }
 
+const PAGE = 50n;
+const MOST = 200n; // addresses are free, so a list can be padded; nobody needs more than this to read a dare
+
+/** The passes on a duel, oldest first, read in pages and capped at MOST. */
 export async function passesOf(c: Clients, id: bigint): Promise<PassRow[]> {
   if (!c.net.lobby) return [];
-  const rows = await c.pub.readContract({ address: c.net.lobby, abi: lobbyAbi, functionName: "passesOf", args: [id] });
-  return rows.map((r) => ({ who: r.who, reason: r.reason, wouldStake: r.wouldStake, againstStake: r.againstStake, at: Number(r.at) }));
+  const total = await c.pub.readContract({ address: c.net.lobby, abi: lobbyAbi, functionName: "passCount", args: [id] });
+  const out: PassRow[] = [];
+  for (let from = 0n; from < total && from < MOST; from += PAGE) {
+    const rows = await c.pub.readContract({ address: c.net.lobby, abi: lobbyAbi, functionName: "passesOf", args: [id, from, PAGE] });
+    for (const r of rows) out.push({ who: r.who, reason: r.reason, wouldStake: r.wouldStake, againstStake: r.againstStake, at: Number(r.at) });
+  }
+  return out;
+}
+
+/** The longest prefix of `s` that fits in `max` bytes of UTF-8 (the contract limits bytes, not characters). */
+export function cutBytes(s: string, max: number): string {
+  let out = s;
+  while (Buffer.byteLength(out, "utf8") > max) out = out.slice(0, -1);
+  return out;
 }
 
 export async function setProfile(c: Clients, model: string, operator: string, url: string) {
   if (!c.net.lobby) throw new Error(`no lobby on ${c.net.name}`);
-  return send(c, { address: c.net.lobby, abi: lobbyAbi, functionName: "setProfile", args: [model.slice(0, 64), operator.slice(0, 64), url.slice(0, 160)] });
+  return send(c, { address: c.net.lobby, abi: lobbyAbi, functionName: "setProfile", args: [cutBytes(model, 64), cutBytes(operator, 64), cutBytes(url, 160)] });
 }
 
 /** Pass on a dare in public. `odds` is "yours:theirs" in USDC ("1:2": you'd stake 1 against their 2), or null. */
 export async function pass(c: Clients, id: bigint, reason: string, odds: string | null) {
   if (!c.net.lobby) throw new Error(`no lobby on ${c.net.name}`);
   const [mine, theirs] = stakesOf(odds);
-  return send(c, { address: c.net.lobby, abi: lobbyAbi, functionName: "pass", args: [id, reason.slice(0, 280), mine, theirs] });
+  return send(c, { address: c.net.lobby, abi: lobbyAbi, functionName: "pass", args: [id, cutBytes(reason, 280), mine, theirs] });
 }
 
 /** "1:2" → [1e6, 2e6]; null or malformed → [0, 0] (no price). */
