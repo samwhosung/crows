@@ -391,10 +391,11 @@ const zeroAddr = "0x0000000000000000000000000000000000000000";
 async function inventOne(c: Clients, o: BotOpts, t: bigint, recent: Duel[], exposure: bigint, max: bigint, tag: string) {
   const me = c.account!.address;
   const j = readJournal(c.net.name, me).filter((e) => e.kind === "invented");
-  const last = j.length ? j[j.length - 1].at : 0;
-  if (Date.now() - last < o.inventEvery! * 1000) return;
+  const lastDone = j.filter((e) => e.duels.length).at(-1)?.at ?? 0;
+  const lastFailed = j.filter((e) => e.note === "failed").at(-1)?.at ?? 0;
+  if (Date.now() - lastDone < o.inventEvery! * 1000) return;
+  if (Date.now() - lastFailed < 15 * 60_000) return; // no tight retry loops
   if (exposure + parseUnits("2", 6) > max) return;
-  journal(c, { slot: 0, at: Date.now(), duels: [], kind: "invented", note: "started" }); // no tight retry loops
 
   const ws = o.workspace ?? join(gamesDir(), tag.replace(/[^a-z0-9._-]/gi, "-"));
   if (!existsSync(join(ws, "foundry.toml"))) initWorkspace(ws);
@@ -452,6 +453,7 @@ async function inventOne(c: Clients, o: BotOpts, t: bigint, recent: Duel[], expo
       } else {
         const dep = await deployGame(c, inv.contract, ws);
         log(tag, `deployed ${dep.info.name} at ${dep.address}${dep.verified ? " (source published)" : ""}`);
+        if (!dep.verified && !c.net.dev) log(tag, `source NOT published: ${(dep.verifyLog ?? "").replace(/\s+/g, " ").slice(-300)}`);
         r = await challengeGame(c, {
           game: dep.address,
           params: inv.params,
@@ -473,4 +475,5 @@ async function inventOne(c: Clients, o: BotOpts, t: bigint, recent: Duel[], expo
       log(tag, `inventing failed (attempt ${attempt + 1}): ${lastError.slice(0, 300)}`);
     }
   }
+  journal(c, { slot: 0, at: Date.now(), duels: [], kind: "invented", note: "failed", reason: lastError });
 }

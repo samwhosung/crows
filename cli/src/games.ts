@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -119,31 +119,41 @@ export function gamesDir(): string {
   return process.env.CROWS_GAMES ?? join(crowsHome(), "games");
 }
 
-/** Make a private Foundry workspace for writing games, from the kit in the repo's games/ folder. */
+/**
+ * Make (or refresh) a private Foundry workspace for writing games, from the kit in the repo's games/ folder.
+ * The crows sources are copied into deps/crows/ so a game's whole import graph lives under the workspace root:
+ * Sourcify verification only sends files under the project, so imports through absolute paths can't be verified.
+ */
 export function initWorkspace(dir = gamesDir()): string {
   const kit = join(REPO, "games");
+  const contracts = join(REPO, "contracts");
   if (!existsSync(join(kit, "README.md"))) throw new Error(`the game kit isn't here (${kit}): use a clone of the crows repo`);
   mkdirSync(join(dir, "src"), { recursive: true });
   mkdirSync(join(dir, "test"), { recursive: true });
   cpSync(join(kit, "README.md"), join(dir, "README.md"));
-  cpSync(join(kit, "src/examples"), join(dir, "src/examples"), { recursive: true });
-  cpSync(join(kit, "test"), join(dir, "test"), { recursive: true });
-  const contracts = join(REPO, "contracts");
+  if (!existsSync(join(dir, "src/examples"))) cpSync(join(kit, "src/examples"), join(dir, "src/examples"), { recursive: true });
+  if (!existsSync(join(dir, "test/GameTest.sol"))) cpSync(join(kit, "test"), join(dir, "test"), { recursive: true });
+  // Not under lib/: Foundry invents remappings for anything in lib/, and they clash with these.
+  // The copy keeps the repo's layout (src/, test/mocks/), because the mocks import crows by relative path.
+  rmSync(join(dir, "deps"), { recursive: true, force: true });
+  cpSync(join(contracts, "src"), join(dir, "deps/crows/src"), { recursive: true });
+  cpSync(join(contracts, "test/mocks"), join(dir, "deps/crows/test/mocks"), { recursive: true });
   writeFileSync(
     join(dir, "foundry.toml"),
     [
-      `# A crows game workspace. Made by \`crows game init\`; the kit lives in ${kit}.`,
+      `# A crows game workspace. Made by \`crows game init\` (which also refreshes deps/); the kit lives in ${kit}.`,
       `[profile.default]`,
       `src = "src"`,
       `test = "test"`,
       `out = "out"`,
       `libs = ["${join(contracts, "lib")}"]`,
+      `auto_detect_remappings = false`,
       `solc = "0.8.30"`,
       `evm_version = "cancun"`,
       `optimizer = true`,
       `optimizer_runs = 200`,
       `bytecode_hash = "none"`,
-      `remappings = ["crows/=${join(contracts, "src")}/", "crows-test/=${join(contracts, "test")}/", "forge-std/=${join(contracts, "lib/forge-std/src")}/"]`,
+      `remappings = ["crows/=deps/crows/src/", "crows-test/=deps/crows/test/", "forge-std/=${join(contracts, "lib/forge-std/src")}/"]`,
       ``,
     ].join("\n"),
   );
@@ -179,6 +189,7 @@ export type Deployed = { address: Address; tx: Hex; source: string; verified: bo
  */
 export async function deployGame(c: Clients, name: string, dir = gamesDir()): Promise<Deployed> {
   if (!existsSync(join(dir, "foundry.toml"))) throw new Error(`no game workspace at ${dir}: run \`crows game init\``);
+  initWorkspace(dir); // refresh lib/crows and the config, so the published sources match this repo's
   const b = forge(["build"], dir);
   if (!b.ok) throw new Error(`forge build failed:\n${b.out.slice(-1500)}`);
   const art = artifactOf(dir, name);
