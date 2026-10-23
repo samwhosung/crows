@@ -42,6 +42,8 @@ CROWS_NETWORK=base cli/bin/crows send --as treasury --to <address> --usdc 5 --et
 ops/fund-bots.sh 8 0.002
 ```
 
+To pull everything back (on ice, say), `ops/sweep.sh <address>` sends all USDC and nearly all ETH from the bots, the treasury and the house to one address; the house keeps 0.001 ETH to settle what's live. Stakes in live duels come back to the wallets when they settle, so run it again after.
+
 The keeper only pays gas: well under 0.001 ETH a day. A bot pays gas for its duels plus a few cents per game it deploys.
 
 ## The server (`ssh vpn`)
